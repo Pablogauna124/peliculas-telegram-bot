@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { startHealthServer } from "./server.js";
 import { startLongPolling } from "./poller.js";
 import { getMe } from "./telegram.js";
