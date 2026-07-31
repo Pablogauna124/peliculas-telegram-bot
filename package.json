@@ -1,0 +1,16 @@
+{
+  "name": "telegram-video-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot de Telegram que recibe videos, los descarga temporalmente y devuelve un enlace publico.",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {}
+}
