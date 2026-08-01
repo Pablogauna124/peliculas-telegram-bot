@@ -13,12 +13,11 @@ const WELCOME =
   "• Documentos de video\n" +
   "• Video-notas";
 
-/** Extrae el objeto de video de cualquier variante de mensaje. */
 function extractVideo(message) {
   if (message.video) {
     return {
       fileId: message.video.file_id,
-      mimeType: message.video.mime_type,
+      mimeType: message.video.mime_type || "video/mp4",
       originalName: message.video.file_name || null,
     };
   }
@@ -34,7 +33,7 @@ function extractVideo(message) {
   if (message.animation) {
     return {
       fileId: message.animation.file_id,
-      mimeType: message.animation.mime_type,
+      mimeType: message.animation.mime_type || "video/mp4",
       originalName: message.animation.file_name || null,
     };
   }
@@ -140,10 +139,5 @@ export async function handleUpdate(update) {
       chatId,
       "📤 Enviame un video para subirlo y generar su enlace público.",
     );
-  }
-}
-
-  if (text) {
-    await sendMessage(chatId, "Enviame un video para generar el enlace publico.");
   }
 }
