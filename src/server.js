@@ -171,6 +171,15 @@ function renderLayout(title, content) {
       background: #000000;
     }
 
+    .embed-player {
+      display: none;
+      width: 100%;
+      height: min(70vh, 720px);
+      min-height: 500px;
+      border: 0;
+      background: #000000;
+    }
+
     .channel-info {
       display: flex;
       align-items: center;
@@ -200,6 +209,7 @@ function renderLayout(title, content) {
     }
 
     .message {
+      margin-top: 18px;
       padding: 24px;
       border: 1px solid #3c2f34;
       border-radius: 15px;
@@ -233,6 +243,11 @@ function renderLayout(title, content) {
       .channel-info {
         align-items: flex-start;
       }
+
+      .embed-player {
+        min-height: 240px;
+        height: 56.25vw;
+      }
     }
   </style>
 </head>
@@ -241,9 +256,7 @@ function renderLayout(title, content) {
   ${content}
 </body>
 </html>`;
-}
-
-function renderChannelList(channels) {
+}function renderChannelList(channels) {
   const cards = channels
     .map((channel) => {
       const logo = channel.logo
@@ -319,11 +332,19 @@ function renderPlayer(channel) {
 
       <section class="player-shell">
         <video
-          id="player"
+          id="video-player"
           controls
           playsinline
           preload="metadata"
         ></video>
+
+        <iframe
+          id="embed-player"
+          class="embed-player"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
       </section>
 
       <div id="player-message"></div>
@@ -342,7 +363,8 @@ function renderPlayer(channel) {
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     <script>
-      const player = document.getElementById("player");
+      const videoPlayer = document.getElementById("video-player");
+      const embedPlayer = document.getElementById("embed-player");
       const message = document.getElementById("player-message");
 
       const sourceUrl = ${sourceUrl};
@@ -355,23 +377,117 @@ function renderPlayer(channel) {
           (includeExternalButton
             ? '<br><a class="external-button" href="' +
               sourceUrl +
-              '" target="_blank" rel="noopener noreferrer">Abrir enlace original</a>'
+              '" target="_blank" rel="noopener noreferrer">' +
+              'Abrir enlace original</a>'
             : '') +
           '</div>';
       }
 
-      function playDirectVideo() {
-        player.src = sourceUrl;
+      function showVideo() {
+        embedPlayer.style.display = "none";
+        videoPlayer.style.display = "block";
+      }
 
-        player.addEventListener("error", () => {
-          showMessage(
-            "El navegador no pudo reproducir este enlace directamente.",
-            true,
-          );
-        });
+      function showIframe(url) {
+        videoPlayer.pause();
+        videoPlayer.removeAttribute("src");
+        videoPlayer.style.display = "none";
+
+        embedPlayer.src = url;
+        embedPlayer.style.display = "block";
+      }
+
+      function playDirectVideo() {
+        showVideo();
+        videoPlayer.src = sourceUrl;
+
+        videoPlayer.addEventListener(
+          "error",
+          () => {
+            showMessage(
+              "El navegador no pudo reproducir este enlace directamente.",
+              true,
+            );
+          },
+          { once: true },
+        );
+      }      function getEmbedUrl(rawUrl) {
+        try {
+          const url = new URL(rawUrl);
+          const hostname = url.hostname.toLowerCase();
+
+          // IBM Video Streaming / Ustream
+          if (
+            hostname === "video.ibm.com" ||
+            hostname.endsWith(".video.ibm.com") ||
+            hostname === "ustream.tv" ||
+            hostname.endsWith(".ustream.tv")
+          ) {
+            return rawUrl;
+          }
+
+          // YouTube corto
+          if (hostname === "youtu.be") {
+            const videoId = url.pathname.split("/").filter(Boolean)[0];
+
+            return videoId
+              ? "https://www.youtube.com/embed/" + videoId
+              : rawUrl;
+          }
+
+          // YouTube normal
+          if (
+            hostname === "youtube.com" ||
+            hostname === "www.youtube.com"
+          ) {
+            if (url.pathname.startsWith("/embed/")) {
+              return rawUrl;
+            }
+
+            const videoId = url.searchParams.get("v");
+
+            if (videoId) {
+              return "https://www.youtube.com/embed/" + videoId;
+            }
+          }
+
+          // Vimeo
+          if (
+            hostname === "vimeo.com" ||
+            hostname === "www.vimeo.com"
+          ) {
+            const videoId = url.pathname.split("/").filter(Boolean)[0];
+
+            return videoId
+              ? "https://player.vimeo.com/video/" + videoId
+              : rawUrl;
+          }
+
+          // Dailymotion
+          if (
+            hostname === "dailymotion.com" ||
+            hostname === "www.dailymotion.com"
+          ) {
+            const parts = url.pathname.split("/").filter(Boolean);
+            const videoIndex = parts.indexOf("video");
+            const videoId =
+              videoIndex >= 0 ? parts[videoIndex + 1] : null;
+
+            return videoId
+              ? "https://www.dailymotion.com/embed/video/" + videoId
+              : rawUrl;
+          }
+
+          // Cualquier otra página: intentar iframe.
+          return rawUrl;
+        } catch {
+          return null;
+        }
       }
 
       if (channelType === "m3u8") {
+        showVideo();
+
         if (window.Hls && Hls.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
@@ -379,7 +495,7 @@ function renderPlayer(channel) {
           });
 
           hls.loadSource(sourceUrl);
-          hls.attachMedia(player);
+          hls.attachMedia(videoPlayer);
 
           hls.on(Hls.Events.ERROR, function (_, data) {
             if (data.fatal) {
@@ -389,8 +505,10 @@ function renderPlayer(channel) {
               );
             }
           });
-        } else if (player.canPlayType("application/vnd.apple.mpegurl")) {
-          player.src = sourceUrl;
+        } else if (
+          videoPlayer.canPlayType("application/vnd.apple.mpegurl")
+        ) {
+          videoPlayer.src = sourceUrl;
         } else {
           showMessage(
             "Este navegador no admite reproducción HLS.",
@@ -403,18 +521,27 @@ function renderPlayer(channel) {
         channelType === "ts"
       ) {
         playDirectVideo();
-      } else {
+      } else if (channelType === "m3u") {
         showMessage(
-          "Este tipo de enlace no puede reproducirse directamente dentro del navegador.",
+          "Este enlace es una lista M3U. Primero debe importarse para seleccionar uno de sus canales.",
           true,
         );
+      } else {
+        const embedUrl = getEmbedUrl(sourceUrl);
+
+        if (embedUrl) {
+          showIframe(embedUrl);
+        } else {
+          showMessage(
+            "No se pudo interpretar este enlace.",
+            true,
+          );
+        }
       }
     </script>
     `,
   );
-}
-
-export function startHealthServer() {
+}export function startHealthServer() {
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = new URL(
