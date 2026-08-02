@@ -1,7 +1,12 @@
 import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
-import { sendMessage } from "./telegram.js";
+import {
+  sendMessage,
+  getFile,
+  buildFileUrl,
+} from "./telegram.js";
 import { logger } from "./logger.js";
+import { importM3uContent } from "./m3u.js";
 
 import {
   createChannel,
@@ -14,8 +19,8 @@ import {
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
 /*
- * Guarda temporalmente el paso actual de cada conversación.
- * Al reiniciarse Render, una operación incompleta se cancela.
+ * Guarda temporalmente las operaciones activas.
+ * Las sesiones se pierden si Render se reinicia.
  */
 const sessions = new Map();
 
@@ -24,7 +29,8 @@ const WELCOME =
   "Podés subir videos y administrar canales de televisión.\n\n" +
   "<b>Comandos:</b>\n" +
   "• <code>/nuevo</code> — agregar un canal paso a paso\n" +
-  "• <code>/listar</code> — ver los canales guardados\n" +
+  "• <code>/importar</code> — importar una lista M3U\n" +
+  "• <code>/listar</code> — ver canales guardados\n" +
   "• <code>/actualizar slug | nueva URL</code>\n" +
   "• <code>/eliminar slug</code>\n" +
   "• <code>/activar slug</code>\n" +
@@ -69,7 +75,6 @@ function splitArguments(value) {
 function isValidUrl(value) {
   try {
     const url = new URL(value);
-
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
@@ -113,7 +118,40 @@ function extractVideo(message) {
   }
 
   return null;
-}async function handleVideo(chatId, video) {
+}
+
+function extractM3uDocument(message) {
+  const document = message.document;
+
+  if (!document) return null;
+
+  const fileName = String(document.file_name || "").toLowerCase();
+  const mimeType = String(document.mime_type || "").toLowerCase();
+
+  const isM3u =
+    fileName.endsWith(".m3u") ||
+    fileName.endsWith(".m3u8") ||
+    mimeType.includes("mpegurl") ||
+    mimeType === "audio/x-mpegurl";
+
+  if (!isM3u) return null;
+
+  return {
+    fileId: document.file_id,
+    fileName: document.file_name || "lista.m3u",
+  };
+}
+
+function startImportM3u(chatId) {
+  sessions.set(chatId, {
+    action: "import-m3u",
+  });
+}
+
+function isWaitingM3u(chatId) {
+  return sessions.get(chatId)?.action === "import-m3u";
+}
+async function handleVideo(chatId, video) {
   await sendMessage(chatId, "⏳ <b>Procesando tu video...</b>");
 
   let localPath;
@@ -136,14 +174,14 @@ function extractVideo(message) {
       "✅ <b>Video subido correctamente</b>\n\n" +
         `<b>Nombre:</b> ${escapeHtml(displayName)}\n` +
         `<b>Tamaño:</b> ${sizeMb} MB\n\n` +
-        `<b>Enlace público:</b>\n${escapeHtml(publicUrl)}`
+        `<b>Enlace público:</b>\n${escapeHtml(publicUrl)}`,
     );
   } catch (error) {
     logger.error("Fallo procesando el video:", error.message);
 
     await sendMessage(
       chatId,
-      `❌ <b>No pude procesar el video</b>\n\n${escapeHtml(error.message)}`
+      `❌ <b>No pude procesar el video</b>\n\n${escapeHtml(error.message)}`,
     );
   } finally {
     if (localPath) {
@@ -162,7 +200,7 @@ async function startCreateChannel(chatId) {
   await sendMessage(
     chatId,
     "📺 <b>Nuevo canal</b>\n\n" +
-      "Enviame el <b>nombre del canal</b>."
+      "Enviame el <b>nombre del canal</b>.",
   );
 }
 
@@ -179,7 +217,7 @@ async function processCreateChannel(chatId, text) {
 
     await sendMessage(
       chatId,
-      "🔗 Ahora enviame el <b>enlace del canal</b>."
+      "🔗 Ahora enviame el <b>enlace del canal</b>.",
     );
 
     return true;
@@ -189,8 +227,9 @@ async function processCreateChannel(chatId, text) {
     if (!isValidUrl(text)) {
       await sendMessage(
         chatId,
-        "❌ Ese enlace no parece válido.\n\nIntentá nuevamente."
+        "❌ Ese enlace no parece válido.\n\nIntentá nuevamente.",
       );
+
       return true;
     }
 
@@ -199,7 +238,8 @@ async function processCreateChannel(chatId, text) {
 
     await sendMessage(
       chatId,
-      "📂 Enviame la categoría.\n\nEjemplo:\nNoticias\nDeportes\nPelículas\nInfantiles"
+      "📂 Enviame la categoría.\n\n" +
+        "Ejemplos: Noticias, Deportes, Películas, Infantiles.",
     );
 
     return true;
@@ -211,17 +251,29 @@ async function processCreateChannel(chatId, text) {
 
     await sendMessage(
       chatId,
-      "🖼️ Enviame la URL del logo.\n\nO escribí <code>omitir</code>."
+      "🖼️ Enviame la URL del logo.\n\n" +
+        "O escribí <code>omitir</code>.",
     );
 
     return true;
   }
 
   if (session.step === "logo") {
-    const logo =
-      text.toLowerCase() === "omitir"
-        ? null
-        : text;
+    let logo = null;
+
+    if (text.toLowerCase() !== "omitir") {
+      if (!isValidUrl(text)) {
+        await sendMessage(
+          chatId,
+          "❌ La URL del logo no es válida.\n\n" +
+            "Enviá una URL válida o escribí <code>omitir</code>.",
+        );
+
+        return true;
+      }
+
+      logo = text;
+    }
 
     const channel = await createChannel({
       name: session.data.name,
@@ -237,14 +289,78 @@ async function processCreateChannel(chatId, text) {
       "✅ <b>Canal creado correctamente</b>\n\n" +
         `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
         `<b>Slug:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-        `<b>Tipo:</b> ${escapeHtml(channel.type)}`
+        `<b>Tipo:</b> ${escapeHtml(channel.type)}`,
     );
 
     return true;
   }
 
   return false;
-}async function handleListChannels(chatId) {
+}
+
+async function downloadTextFile(fileId) {
+  const fileInfo = await getFile(fileId);
+  const fileUrl = buildFileUrl(fileInfo.file_path);
+
+  const response = await fetch(fileUrl);
+
+  if (!response.ok) {
+    throw new Error(
+      `No se pudo descargar la lista M3U [${response.status}]`,
+    );
+  }
+
+  return response.text();
+}
+
+async function fetchM3uFromUrl(url) {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept:
+        "application/vnd.apple.mpegurl, application/x-mpegURL, text/plain, */*",
+    },
+    redirect: "follow",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `No se pudo descargar la lista desde la URL [${response.status}]`,
+    );
+  }
+
+  return response.text();
+}
+
+async function importM3uAndReply(chatId, content) {
+  await sendMessage(
+    chatId,
+    "⏳ <b>Importando la lista M3U...</b>\n\n" +
+      "Esto puede tardar según la cantidad de canales.",
+  );
+
+  const result = await importM3uContent(content);
+
+  let response =
+    "✅ <b>Importación finalizada</b>\n\n" +
+    `<b>Total encontrados:</b> ${result.total}\n` +
+    `<b>Nuevos:</b> ${result.created}\n` +
+    `<b>Actualizados:</b> ${result.updated}\n` +
+    `<b>Errores:</b> ${result.failed}`;
+
+  if (result.errors?.length) {
+    const firstErrors = result.errors.slice(0, 5);
+
+    response +=
+      "\n\n<b>Primeros errores:</b>\n" +
+      firstErrors
+        .map((error) => `• ${escapeHtml(error)}`)
+        .join("\n");
+  }
+
+  await sendMessage(chatId, response);
+}
+async function handleListChannels(chatId) {
   const channels = await listChannels();
 
   if (channels.length === 0) {
@@ -256,7 +372,7 @@ async function processCreateChannel(chatId, text) {
     (channel, index) =>
       `${index + 1}. ${channel.active ? "🟢" : "🔴"} ` +
       `<b>${escapeHtml(channel.name)}</b>\n` +
-      `   <code>${escapeHtml(channel.slug)}</code> · ${escapeHtml(channel.type)}`
+      `   <code>${escapeHtml(channel.slug)}</code> · ${escapeHtml(channel.type)}`,
   );
 
   let message = "📺 <b>Canales guardados</b>\n\n";
@@ -284,7 +400,7 @@ async function handleUpdateChannel(chatId, argumentsText) {
       "Usá:\n" +
         "<code>/actualizar slug | nueva URL</code>\n\n" +
         "Ejemplo:\n" +
-        "<code>/actualizar canal-13 | https://servidor.com/live.m3u8</code>"
+        "<code>/actualizar canal-13 | https://servidor.com/live.m3u8</code>",
     );
 
     return;
@@ -302,7 +418,7 @@ async function handleUpdateChannel(chatId, argumentsText) {
     "✅ <b>Enlace actualizado</b>\n\n" +
       `<b>Canal:</b> ${escapeHtml(channel.name)}\n` +
       `<b>Identificador:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-      `<b>Tipo:</b> ${escapeHtml(channel.type)}`
+      `<b>Tipo:</b> ${escapeHtml(channel.type)}`,
   );
 }
 
@@ -312,7 +428,7 @@ async function handleDeleteChannel(chatId, argumentsText) {
   if (!slug) {
     await sendMessage(
       chatId,
-      "Usá: <code>/eliminar slug-del-canal</code>"
+      "Usá: <code>/eliminar slug-del-canal</code>",
     );
     return;
   }
@@ -321,7 +437,7 @@ async function handleDeleteChannel(chatId, argumentsText) {
 
   await sendMessage(
     chatId,
-    `🗑️ Canal eliminado: <b>${escapeHtml(channel.name)}</b>`
+    `🗑️ Canal eliminado: <b>${escapeHtml(channel.name)}</b>`,
   );
 }
 
@@ -331,7 +447,7 @@ async function handleChannelStatus(chatId, argumentsText, active) {
   if (!slug) {
     await sendMessage(
       chatId,
-      `Usá: <code>/${active ? "activar" : "desactivar"} slug-del-canal</code>`
+      `Usá: <code>/${active ? "activar" : "desactivar"} slug-del-canal</code>`,
     );
     return;
   }
@@ -341,7 +457,7 @@ async function handleChannelStatus(chatId, argumentsText, active) {
   await sendMessage(
     chatId,
     `${active ? "🟢" : "🔴"} <b>${escapeHtml(channel.name)}</b> quedó ` +
-      `${active ? "activo" : "desactivado"}.`
+      `${active ? "activo" : "desactivado"}.`,
   );
 }
 
@@ -379,13 +495,29 @@ async function handleTextCommand(chatId, text) {
             "✅ <b>Canal creado correctamente</b>\n\n" +
               `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
               `<b>Slug:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-              `<b>Tipo:</b> ${escapeHtml(channel.type)}`
+              `<b>Tipo:</b> ${escapeHtml(channel.type)}`,
           );
 
           return true;
         }
 
         await startCreateChannel(chatId);
+        return true;
+
+      case "/importar":
+        startImportM3u(chatId);
+
+        await sendMessage(
+          chatId,
+          "📺 <b>Importar lista M3U</b>\n\n" +
+            "Ahora podés enviar:\n" +
+            "• Un archivo <code>.m3u</code>\n" +
+            "• Un archivo <code>.m3u8</code>\n" +
+            "• Una URL pública de una lista\n" +
+            "• O pegar directamente el contenido M3U\n\n" +
+            "Podés cancelar con /cancelar.",
+        );
+
         return true;
 
       case "/listar":
@@ -424,12 +556,13 @@ async function handleTextCommand(chatId, text) {
 
     await sendMessage(
       chatId,
-      `❌ <b>Error</b>\n\n${escapeHtml(error.message)}`
+      `❌ <b>Error</b>\n\n${escapeHtml(error.message)}`,
     );
 
     return true;
   }
-}export async function handleUpdate(update) {
+}
+export async function handleUpdate(update) {
   const message = update.message || update.edited_message;
 
   if (!message?.chat?.id) return;
@@ -445,20 +578,70 @@ async function handleTextCommand(chatId, text) {
 
     await sendMessage(
       chatId,
-      "⛔ No tenés autorización para utilizar este bot."
+      "⛔ No tenés autorización para utilizar este bot.",
     );
 
     return;
   }
 
-  // Si hay una conversación activa, continúa antes de interpretar comandos.
+  if (text === "/cancelar") {
+    sessions.delete(chatId);
+    await sendMessage(chatId, "❎ Operación cancelada.");
+    return;
+  }
+
+  if (isWaitingM3u(chatId)) {
+    try {
+      const m3uDocument = extractM3uDocument(message);
+
+      if (m3uDocument) {
+        const content = await downloadTextFile(m3uDocument.fileId);
+
+        sessions.delete(chatId);
+        await importM3uAndReply(chatId, content);
+        return;
+      }
+
+      if (text && isValidUrl(text)) {
+        const content = await fetchM3uFromUrl(text);
+
+        sessions.delete(chatId);
+        await importM3uAndReply(chatId, content);
+        return;
+      }
+
+      if (text && text.includes("#EXTM3U")) {
+        sessions.delete(chatId);
+        await importM3uAndReply(chatId, text);
+        return;
+      }
+
+      await sendMessage(
+        chatId,
+        "❌ No pude reconocer una lista M3U.\n\n" +
+          "Enviá un archivo .m3u, .m3u8, una URL pública o el contenido que empiece con <code>#EXTM3U</code>.",
+      );
+
+      return;
+    } catch (error) {
+      sessions.delete(chatId);
+
+      logger.error("Fallo importando M3U:", error.message);
+
+      await sendMessage(
+        chatId,
+        `❌ <b>No se pudo importar la lista</b>\n\n${escapeHtml(error.message)}`,
+      );
+
+      return;
+    }
+  }
+
   if (text && sessions.has(chatId)) {
     try {
       const handled = await processCreateChannel(chatId, text);
 
-      if (handled) {
-        return;
-      }
+      if (handled) return;
     } catch (error) {
       sessions.delete(chatId);
 
@@ -466,7 +649,7 @@ async function handleTextCommand(chatId, text) {
 
       await sendMessage(
         chatId,
-        `❌ ${escapeHtml(error.message)}`
+        `❌ ${escapeHtml(error.message)}`,
       );
 
       return;
@@ -476,9 +659,7 @@ async function handleTextCommand(chatId, text) {
   if (text) {
     const handled = await handleTextCommand(chatId, text);
 
-    if (handled) {
-      return;
-    }
+    if (handled) return;
   }
 
   const video = extractVideo(message);
@@ -491,7 +672,7 @@ async function handleTextCommand(chatId, text) {
   if (text) {
     await sendMessage(
       chatId,
-      "No reconocí ese comando. Usá <code>/help</code> para ver las opciones."
+      "No reconocí ese comando. Usá <code>/help</code> para ver las opciones.",
     );
   }
 }
