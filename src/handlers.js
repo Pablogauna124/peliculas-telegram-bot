@@ -2,6 +2,7 @@ import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
 import { sendMessage } from "./telegram.js";
 import { logger } from "./logger.js";
+
 import {
   createChannel,
   listChannels,
@@ -13,8 +14,8 @@ import {
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
 /*
- * Guarda temporalmente las conversaciones activas.
- * Como solo vos usás el bot, alcanza para esta primera versión.
+ * Guarda temporalmente el paso actual de cada conversación.
+ * Al reiniciarse Render, una operación incompleta se cancela.
  */
 const sessions = new Map();
 
@@ -23,7 +24,7 @@ const WELCOME =
   "Podés subir videos y administrar canales de televisión.\n\n" +
   "<b>Comandos:</b>\n" +
   "• <code>/nuevo</code> — agregar un canal paso a paso\n" +
-  "• <code>/listar</code> — ver canales guardados\n" +
+  "• <code>/listar</code> — ver los canales guardados\n" +
   "• <code>/actualizar slug | nueva URL</code>\n" +
   "• <code>/eliminar slug</code>\n" +
   "• <code>/activar slug</code>\n" +
@@ -35,6 +36,44 @@ function escapeHtml(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function isAuthorized(message) {
+  if (!ADMIN_TELEGRAM_ID) {
+    logger.error("Falta configurar ADMIN_TELEGRAM_ID");
+    return false;
+  }
+
+  return Number(message.from?.id) === ADMIN_TELEGRAM_ID;
+}
+
+function getCommand(text) {
+  return String(text || "")
+    .split(/\s+/)[0]
+    .split("@")[0]
+    .toLowerCase();
+}
+
+function getCommandArguments(text) {
+  return String(text || "")
+    .replace(/^\S+\s*/, "")
+    .trim();
+}
+
+function splitArguments(value) {
+  return String(value || "")
+    .split("|")
+    .map((item) => item.trim());
+}
+
+function isValidUrl(value) {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function extractVideo(message) {
@@ -74,44 +113,7 @@ function extractVideo(message) {
   }
 
   return null;
-}
-
-function isAuthorized(message) {
-  if (!ADMIN_TELEGRAM_ID) {
-    logger.error("Falta configurar ADMIN_TELEGRAM_ID");
-    return false;
-  }
-
-  return Number(message.from?.id) === ADMIN_TELEGRAM_ID;
-}
-
-function getCommand(text) {
-  return String(text || "")
-    .split(/\s+/)[0]
-    .split("@")[0]
-    .toLowerCase();
-}
-
-function getCommandArguments(text) {
-  return String(text || "").replace(/^\S+\s*/, "").trim();
-}
-
-function splitArguments(value) {
-  return String(value || "")
-    .split("|")
-    .map((item) => item.trim());
-}
-
-function isValidUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-async function handleVideo(chatId, video) {
+}async function handleVideo(chatId, video) {
   await sendMessage(chatId, "⏳ <b>Procesando tu video...</b>");
 
   let localPath;
@@ -134,14 +136,14 @@ async function handleVideo(chatId, video) {
       "✅ <b>Video subido correctamente</b>\n\n" +
         `<b>Nombre:</b> ${escapeHtml(displayName)}\n` +
         `<b>Tamaño:</b> ${sizeMb} MB\n\n` +
-        `<b>Enlace público:</b>\n${escapeHtml(publicUrl)}`,
+        `<b>Enlace público:</b>\n${escapeHtml(publicUrl)}`
     );
   } catch (error) {
     logger.error("Fallo procesando el video:", error.message);
 
     await sendMessage(
       chatId,
-      `❌ <b>No pude procesar el video</b>\n\n${escapeHtml(error.message)}`,
+      `❌ <b>No pude procesar el video</b>\n\n${escapeHtml(error.message)}`
     );
   } finally {
     if (localPath) {
@@ -160,161 +162,89 @@ async function startCreateChannel(chatId) {
   await sendMessage(
     chatId,
     "📺 <b>Nuevo canal</b>\n\n" +
-      "Enviame el <b>nombre del canal</b>.\n\n" +
-      "Podés cancelar con /cancelar.",
+      "Enviame el <b>nombre del canal</b>."
   );
 }
 
-async function processCreateChannelSession(chatId, text) {
+async function processCreateChannel(chatId, text) {
   const session = sessions.get(chatId);
 
   if (!session || session.action !== "create-channel") {
     return false;
   }
 
-  try {
-    if (session.step === "name") {
-      if (text.length < 2) {
-        await sendMessage(chatId, "El nombre es demasiado corto. Intentá otra vez.");
-        return true;
-      }
-
-      session.data.name = text;
-      session.step = "url";
-      sessions.set(chatId, session);
-
-      await sendMessage(
-        chatId,
-        `✅ Nombre: <b>${escapeHtml(text)}</b>\n\n` +
-          "Ahora enviame el <b>enlace de reproducción</b>.",
-      );
-
-      return true;
-    }
-
-    if (session.step === "url") {
-      if (!isValidUrl(text)) {
-        await sendMessage(
-          chatId,
-          "❌ El enlace no parece válido.\n\n" +
-            "Debe comenzar con <code>http://</code> o <code>https://</code>.",
-        );
-
-        return true;
-      }
-
-      session.data.url = text;
-      session.step = "category";
-      sessions.set(chatId, session);
-
-      await sendMessage(
-        chatId,
-        "📂 Enviame la <b>categoría</b> del canal.\n\n" +
-          "Ejemplos: Deportes, Noticias, Música, Infantiles.\n\n" +
-          "También podés escribir <code>General</code>.",
-      );
-
-      return true;
-    }
-
-    if (session.step === "category") {
-      session.data.category = text || "General";
-      session.step = "logo";
-      sessions.set(chatId, session);
-
-      await sendMessage(
-        chatId,
-        "🖼️ Enviame la URL del <b>logo</b> del canal.\n\n" +
-          "Si no querés agregarlo, escribí:\n" +
-          "<code>omitir</code>",
-      );
-
-      return true;
-    }
-
-    if (session.step === "logo") {
-      let logo = null;
-
-      if (text.toLowerCase() !== "omitir") {
-        if (!isValidUrl(text)) {
-          await sendMessage(
-            chatId,
-            "❌ La URL del logo no es válida.\n\n" +
-              "Enviá una URL válida o escribí <code>omitir</code>.",
-          );
-
-          return true;
-        }
-
-        logo = text;
-      }
-
-      const channel = await createChannel({
-        name: session.data.name,
-        url: session.data.url,
-        category: session.data.category,
-        logo,
-      });
-
-      sessions.delete(chatId);
-
-      await sendMessage(
-        chatId,
-        "✅ <b>Canal creado correctamente</b>\n\n" +
-          `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
-          `<b>Identificador:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-          `<b>Tipo:</b> ${escapeHtml(channel.type)}\n` +
-          `<b>Categoría:</b> ${escapeHtml(channel.category)}\n` +
-          `<b>Estado:</b> ${channel.active ? "Activo" : "Desactivado"}\n\n` +
-          `<b>Dirección permanente:</b>\n` +
-          `${escapeHtml(process.env.PUBLIC_BASE_URL?.replace(/\/videos\/?$/, "") || "")}` +
-          `/tv/${escapeHtml(channel.slug)}`,
-      );
-
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    sessions.delete(chatId);
-    logger.error("Fallo creando canal:", error.message);
+  if (session.step === "name") {
+    session.data.name = text;
+    session.step = "url";
 
     await sendMessage(
       chatId,
-      `❌ <b>No se pudo crear el canal</b>\n\n${escapeHtml(error.message)}`,
+      "🔗 Ahora enviame el <b>enlace del canal</b>."
     );
 
     return true;
   }
-}
 
-async function handleCreateChannelDirect(chatId, argumentsText) {
-  const [name, url, category = "General", logo = ""] =
-    splitArguments(argumentsText);
+  if (session.step === "url") {
+    if (!isValidUrl(text)) {
+      await sendMessage(
+        chatId,
+        "❌ Ese enlace no parece válido.\n\nIntentá nuevamente."
+      );
+      return true;
+    }
 
-  if (!name || !url) {
-    await startCreateChannel(chatId);
-    return;
+    session.data.url = text;
+    session.step = "category";
+
+    await sendMessage(
+      chatId,
+      "📂 Enviame la categoría.\n\nEjemplo:\nNoticias\nDeportes\nPelículas\nInfantiles"
+    );
+
+    return true;
   }
 
-  const channel = await createChannel({
-    name,
-    url,
-    category,
-    logo: logo || null,
-  });
+  if (session.step === "category") {
+    session.data.category = text || "General";
+    session.step = "logo";
 
-  await sendMessage(
-    chatId,
-    "✅ <b>Canal creado correctamente</b>\n\n" +
-      `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
-      `<b>Identificador:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-      `<b>Tipo detectado:</b> ${escapeHtml(channel.type)}\n` +
-      `<b>Categoría:</b> ${escapeHtml(channel.category)}`,
-  );
-}
+    await sendMessage(
+      chatId,
+      "🖼️ Enviame la URL del logo.\n\nO escribí <code>omitir</code>."
+    );
 
-async function handleListChannels(chatId) {
+    return true;
+  }
+
+  if (session.step === "logo") {
+    const logo =
+      text.toLowerCase() === "omitir"
+        ? null
+        : text;
+
+    const channel = await createChannel({
+      name: session.data.name,
+      url: session.data.url,
+      category: session.data.category,
+      logo,
+    });
+
+    sessions.delete(chatId);
+
+    await sendMessage(
+      chatId,
+      "✅ <b>Canal creado correctamente</b>\n\n" +
+        `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
+        `<b>Slug:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
+        `<b>Tipo:</b> ${escapeHtml(channel.type)}`
+    );
+
+    return true;
+  }
+
+  return false;
+}async function handleListChannels(chatId) {
   const channels = await listChannels();
 
   if (channels.length === 0) {
@@ -326,25 +256,22 @@ async function handleListChannels(chatId) {
     (channel, index) =>
       `${index + 1}. ${channel.active ? "🟢" : "🔴"} ` +
       `<b>${escapeHtml(channel.name)}</b>\n` +
-      `   <code>${escapeHtml(channel.slug)}</code> · ${escapeHtml(channel.type)}`,
+      `   <code>${escapeHtml(channel.slug)}</code> · ${escapeHtml(channel.type)}`
   );
 
-  const chunks = [];
-  let current = "📺 <b>Canales guardados</b>\n\n";
+  let message = "📺 <b>Canales guardados</b>\n\n";
 
   for (const line of lines) {
-    if ((current + line).length > 3500) {
-      chunks.push(current);
-      current = "";
+    if ((message + line).length > 3500) {
+      await sendMessage(chatId, message);
+      message = "";
     }
 
-    current += `${line}\n\n`;
+    message += `${line}\n\n`;
   }
 
-  if (current) chunks.push(current);
-
-  for (const chunk of chunks) {
-    await sendMessage(chatId, chunk);
+  if (message) {
+    await sendMessage(chatId, message);
   }
 }
 
@@ -357,9 +284,14 @@ async function handleUpdateChannel(chatId, argumentsText) {
       "Usá:\n" +
         "<code>/actualizar slug | nueva URL</code>\n\n" +
         "Ejemplo:\n" +
-        "<code>/actualizar canal-13 | https://servidor.com/live.m3u8</code>",
+        "<code>/actualizar canal-13 | https://servidor.com/live.m3u8</code>"
     );
 
+    return;
+  }
+
+  if (!isValidUrl(newUrl)) {
+    await sendMessage(chatId, "❌ La nueva URL no parece válida.");
     return;
   }
 
@@ -370,7 +302,7 @@ async function handleUpdateChannel(chatId, argumentsText) {
     "✅ <b>Enlace actualizado</b>\n\n" +
       `<b>Canal:</b> ${escapeHtml(channel.name)}\n` +
       `<b>Identificador:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
-      `<b>Tipo detectado:</b> ${escapeHtml(channel.type)}`,
+      `<b>Tipo:</b> ${escapeHtml(channel.type)}`
   );
 }
 
@@ -378,7 +310,10 @@ async function handleDeleteChannel(chatId, argumentsText) {
   const slug = argumentsText.trim();
 
   if (!slug) {
-    await sendMessage(chatId, "Usá: <code>/eliminar slug-del-canal</code>");
+    await sendMessage(
+      chatId,
+      "Usá: <code>/eliminar slug-del-canal</code>"
+    );
     return;
   }
 
@@ -386,7 +321,7 @@ async function handleDeleteChannel(chatId, argumentsText) {
 
   await sendMessage(
     chatId,
-    `🗑️ Canal eliminado: <b>${escapeHtml(channel.name)}</b>`,
+    `🗑️ Canal eliminado: <b>${escapeHtml(channel.name)}</b>`
   );
 }
 
@@ -396,9 +331,8 @@ async function handleChannelStatus(chatId, argumentsText, active) {
   if (!slug) {
     await sendMessage(
       chatId,
-      `Usá: <code>/${active ? "activar" : "desactivar"} slug-del-canal</code>`,
+      `Usá: <code>/${active ? "activar" : "desactivar"} slug-del-canal</code>`
     );
-
     return;
   }
 
@@ -407,7 +341,7 @@ async function handleChannelStatus(chatId, argumentsText, active) {
   await sendMessage(
     chatId,
     `${active ? "🟢" : "🔴"} <b>${escapeHtml(channel.name)}</b> quedó ` +
-      `${active ? "activo" : "desactivado"}.`,
+      `${active ? "activo" : "desactivado"}.`
   );
 }
 
@@ -422,19 +356,36 @@ async function handleTextCommand(chatId, text) {
         await sendMessage(chatId, WELCOME);
         return true;
 
-      case "/cancelar":
-        if (sessions.has(chatId)) {
-          sessions.delete(chatId);
-          await sendMessage(chatId, "❎ Operación cancelada.");
-        } else {
-          await sendMessage(chatId, "No hay ninguna operación activa.");
-        }
-
-        return true;
-
       case "/nuevo":
       case "/agregarcanal":
-        await handleCreateChannelDirect(chatId, argumentsText);
+        if (argumentsText) {
+          const [name, url, category = "General", logo = ""] =
+            splitArguments(argumentsText);
+
+          if (!name || !url) {
+            await startCreateChannel(chatId);
+            return true;
+          }
+
+          const channel = await createChannel({
+            name,
+            url,
+            category,
+            logo: logo || null,
+          });
+
+          await sendMessage(
+            chatId,
+            "✅ <b>Canal creado correctamente</b>\n\n" +
+              `<b>Nombre:</b> ${escapeHtml(channel.name)}\n` +
+              `<b>Slug:</b> <code>${escapeHtml(channel.slug)}</code>\n` +
+              `<b>Tipo:</b> ${escapeHtml(channel.type)}`
+          );
+
+          return true;
+        }
+
+        await startCreateChannel(chatId);
         return true;
 
       case "/listar":
@@ -460,6 +411,11 @@ async function handleTextCommand(chatId, text) {
         await handleChannelStatus(chatId, argumentsText, false);
         return true;
 
+      case "/cancelar":
+        sessions.delete(chatId);
+        await sendMessage(chatId, "❎ Operación cancelada.");
+        return true;
+
       default:
         return false;
     }
@@ -468,14 +424,12 @@ async function handleTextCommand(chatId, text) {
 
     await sendMessage(
       chatId,
-      `❌ <b>Error</b>\n\n${escapeHtml(error.message)}`,
+      `❌ <b>Error</b>\n\n${escapeHtml(error.message)}`
     );
 
     return true;
   }
-}
-
-export async function handleUpdate(update) {
+}export async function handleUpdate(update) {
   const message = update.message || update.edited_message;
 
   if (!message?.chat?.id) return;
@@ -491,27 +445,40 @@ export async function handleUpdate(update) {
 
     await sendMessage(
       chatId,
-      "⛔ No tenés autorización para utilizar este bot.",
+      "⛔ No tenés autorización para utilizar este bot."
     );
 
     return;
   }
 
-  if (text === "/cancelar") {
-    await handleTextCommand(chatId, text);
-    return;
-  }
-
+  // Si hay una conversación activa, continúa antes de interpretar comandos.
   if (text && sessions.has(chatId)) {
-    const handledSession = await processCreateChannelSession(chatId, text);
+    try {
+      const handled = await processCreateChannel(chatId, text);
 
-    if (handledSession) return;
+      if (handled) {
+        return;
+      }
+    } catch (error) {
+      sessions.delete(chatId);
+
+      logger.error("Error en la conversación:", error.message);
+
+      await sendMessage(
+        chatId,
+        `❌ ${escapeHtml(error.message)}`
+      );
+
+      return;
+    }
   }
 
   if (text) {
-    const commandHandled = await handleTextCommand(chatId, text);
+    const handled = await handleTextCommand(chatId, text);
 
-    if (commandHandled) return;
+    if (handled) {
+      return;
+    }
   }
 
   const video = extractVideo(message);
@@ -521,19 +488,10 @@ export async function handleUpdate(update) {
     return;
   }
 
-  if (sessions.has(chatId)) {
-    await sendMessage(
-      chatId,
-      "Necesito que respondas con texto. Podés cancelar con /cancelar.",
-    );
-
-    return;
-  }
-
   if (text) {
     await sendMessage(
       chatId,
-      "No reconocí ese comando. Usá /help para ver las opciones.",
+      "No reconocí ese comando. Usá <code>/help</code> para ver las opciones."
     );
   }
 }
