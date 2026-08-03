@@ -617,7 +617,7 @@ async function handleTextCommand(chatId, text) {
         return true;
       }
         
-      case "/importartodas": {
+           case "/importartodas": {
         const sources = await listM3uSources({
           onlyActive: true,
         });
@@ -625,72 +625,115 @@ async function handleTextCommand(chatId, text) {
         if (!sources.length) {
           await sendMessage(
             chatId,
-            "No hay listas M3U activas guardadas.",
+            "❌ No hay listas M3U activas guardadas.",
           );
           return true;
         }
 
         await sendMessage(
           chatId,
-          `⏳ <b>Importando ${sources.length} listas M3U...</b>`,
+          "⏳ <b>Importación múltiple iniciada</b>\n\n" +
+            `<b>Listas activas:</b> ${sources.length}\n` +
+            "Se procesarán una por una.",
         );
 
-        let total = 0;
-        let created = 0;
-        let updated = 0;
-        let failed = 0;
+        const startedAt = Date.now();
+
+        let processedLists = 0;
+        let failedLists = 0;
+        let totalChannels = 0;
+        let createdChannels = 0;
+        let updatedChannels = 0;
+        let failedChannels = 0;
+
         const errors = [];
 
-        for (const source of sources) {
-          try {
-            await sendMessage(
-              chatId,
-              `📡 Importando: <b>${escapeHtml(source.name)}</b>`,
-            );
+        for (let index = 0; index < sources.length; index += 1) {
+          const source = sources[index];
 
+          await sendMessage(
+            chatId,
+            `📡 <b>${index + 1}/${sources.length}</b> — ` +
+              `Importando <b>${escapeHtml(source.name)}</b>...`,
+          );
+
+          try {
             const content = await fetchM3uFromUrl(source.url);
             const result = await importM3uContent(content);
 
-            total += result.total;
-            created += result.created;
-            updated += result.updated;
-            failed += result.failed;
+            processedLists += 1;
+            totalChannels += result.total;
+            createdChannels += result.created;
+            updatedChannels += result.updated;
+            failedChannels += result.failed;
 
             if (result.errors?.length) {
               errors.push(
                 ...result.errors.map(
-                  (error) => `${source.name}: ${error}`,
+                  (error) =>
+                    `${source.name}: ${error}`,
                 ),
               );
             }
+
+            await sendMessage(
+              chatId,
+              `✅ <b>${escapeHtml(source.name)}</b>\n\n` +
+                `Encontrados: ${result.total}\n` +
+                `Nuevos: ${result.created}\n` +
+                `Actualizados: ${result.updated}\n` +
+                `Errores: ${result.failed}`,
+            );
           } catch (error) {
-            failed += 1;
+            failedLists += 1;
+
             errors.push(
               `${source.name}: ${error.message}`,
+            );
+
+            logger.error(
+              `Fallo importando ${source.name}:`,
+              error.message,
+            );
+
+            await sendMessage(
+              chatId,
+              `❌ Falló <b>${escapeHtml(source.name)}</b>\n\n` +
+                escapeHtml(error.message),
             );
           }
         }
 
+        const elapsedSeconds = Math.round(
+          (Date.now() - startedAt) / 1000,
+        );
+
         let response =
-          "✅ <b>Importación de listas finalizada</b>\n\n" +
-          `<b>Listas procesadas:</b> ${sources.length}\n` +
-          `<b>Canales encontrados:</b> ${total}\n` +
-          `<b>Nuevos:</b> ${created}\n` +
-          `<b>Actualizados:</b> ${updated}\n` +
-          `<b>Errores:</b> ${failed}`;
+          "✅ <b>Importación múltiple finalizada</b>\n\n" +
+          `<b>Listas procesadas:</b> ${processedLists}\n` +
+          `<b>Listas fallidas:</b> ${failedLists}\n` +
+          `<b>Canales encontrados:</b> ${totalChannels}\n` +
+          `<b>Nuevos:</b> ${createdChannels}\n` +
+          `<b>Actualizados:</b> ${updatedChannels}\n` +
+          `<b>Errores de canales:</b> ${failedChannels}\n` +
+          `<b>Duración:</b> ${elapsedSeconds} segundos`;
 
         if (errors.length) {
           response +=
             "\n\n<b>Primeros errores:</b>\n" +
             errors
               .slice(0, 5)
-              .map((error) => `• ${escapeHtml(error)}`)
+              .map(
+                (error) =>
+                  `• ${escapeHtml(error)}`,
+              )
               .join("\n");
         }
 
         await sendMessage(chatId, response);
         return true;
       }
+      
       case "/listar":
       case "/canales":
         await handleListChannels(chatId);
