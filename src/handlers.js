@@ -16,6 +16,12 @@ import {
   setChannelActive,
 } from "./channels.js";
 
+import {
+  addM3uSource,
+  listM3uSources,
+  deleteM3uSource,
+  setM3uSourceActive,
+} from "./m3u-sources.js";
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
 const sessions = new Map();
@@ -529,7 +535,162 @@ async function handleTextCommand(chatId, text) {
         );
 
         return true;
+        
+              case "/agregarlista": {
+        const [name, url] = splitArguments(argumentsText);
 
+        if (!name || !url) {
+          await sendMessage(
+            chatId,
+            "Usá:\n<code>/agregarlista Nombre | URL</code>",
+          );
+          return true;
+        }
+
+        const source = await addM3uSource(name, url);
+
+        await sendMessage(
+          chatId,
+          `✅ Lista agregada\n\n<b>${escapeHtml(source.name)}</b>\n${escapeHtml(source.url)}`,
+        );
+
+        return true;
+      }
+
+      case "/listas": {
+        const sources = await listM3uSources();
+
+        if (!sources.length) {
+          await sendMessage(chatId, "No hay listas guardadas.");
+          return true;
+        }
+
+        let msg = "📺 <b>Listas M3U guardadas</b>\n\n";
+
+        for (const source of sources) {
+          msg += `${source.active ? "🟢" : "🔴"} <b>${escapeHtml(source.name)}</b>\n`;
+          msg += `${escapeHtml(source.url)}\n\n`;
+        }
+
+        await sendMessage(chatId, msg);
+        return true;
+      }
+
+      case "/eliminarlista": {
+        if (!argumentsText) {
+          await sendMessage(
+            chatId,
+            "Usá:\n<code>/eliminarlista Nombre</code>",
+          );
+          return true;
+        }
+
+        const source = await deleteM3uSource(argumentsText);
+
+        await sendMessage(
+          chatId,
+          `🗑️ Lista eliminada: <b>${escapeHtml(source.name)}</b>`,
+        );
+
+        return true;
+      }
+
+      case "/activarlista": {
+        const source = await setM3uSourceActive(argumentsText, true);
+
+        await sendMessage(
+          chatId,
+          `🟢 Lista activada: <b>${escapeHtml(source.name)}</b>`,
+        );
+
+        return true;
+      }
+
+      case "/desactivarlista": {
+        const source = await setM3uSourceActive(argumentsText, false);
+
+        await sendMessage(
+          chatId,
+          `🔴 Lista desactivada: <b>${escapeHtml(source.name)}</b>`,
+        );
+
+        return true;
+      }
+        
+      case "/importartodas": {
+        const sources = await listM3uSources({
+          onlyActive: true,
+        });
+
+        if (!sources.length) {
+          await sendMessage(
+            chatId,
+            "No hay listas M3U activas guardadas.",
+          );
+          return true;
+        }
+
+        await sendMessage(
+          chatId,
+          `⏳ <b>Importando ${sources.length} listas M3U...</b>`,
+        );
+
+        let total = 0;
+        let created = 0;
+        let updated = 0;
+        let failed = 0;
+        const errors = [];
+
+        for (const source of sources) {
+          try {
+            await sendMessage(
+              chatId,
+              `📡 Importando: <b>${escapeHtml(source.name)}</b>`,
+            );
+
+            const content = await fetchM3uFromUrl(source.url);
+            const result = await importM3uContent(content);
+
+            total += result.total;
+            created += result.created;
+            updated += result.updated;
+            failed += result.failed;
+
+            if (result.errors?.length) {
+              errors.push(
+                ...result.errors.map(
+                  (error) => `${source.name}: ${error}`,
+                ),
+              );
+            }
+          } catch (error) {
+            failed += 1;
+            errors.push(
+              `${source.name}: ${error.message}`,
+            );
+          }
+        }
+
+        let response =
+          "✅ <b>Importación de listas finalizada</b>\n\n" +
+          `<b>Listas procesadas:</b> ${sources.length}\n` +
+          `<b>Canales encontrados:</b> ${total}\n` +
+          `<b>Nuevos:</b> ${created}\n` +
+          `<b>Actualizados:</b> ${updated}\n` +
+          `<b>Errores:</b> ${failed}`;
+
+        if (errors.length) {
+          response +=
+            "\n\n<b>Primeros errores:</b>\n" +
+            errors
+              .slice(0, 5)
+              .map((error) => `• ${escapeHtml(error)}`)
+              .join("\n");
+        }
+
+        await sendMessage(chatId, response);
+        return true;
+      }
       case "/listar":
       case "/canales":
         await handleListChannels(chatId);
