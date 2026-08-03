@@ -97,3 +97,107 @@ export async function importM3uContent(content) {
 
   return result;
 }
+export function startHealthServer() {
+  const server = http.createServer(async (req, res) => {
+    try {
+      const requestUrl = new URL(
+        req.url || "/",
+        `http://${req.headers.host || "localhost"}`,
+      );
+
+      const pathname = requestUrl.pathname;
+
+      if (pathname === "/" || pathname === "/health") {
+        sendJson(res, 200, {
+          status: "ok",
+          mode: "long-polling",
+        });
+        return;
+      }
+
+      if (pathname === "/api/channels") {
+        const channels = await listChannels();
+
+        sendJson(
+          res,
+          200,
+          channels.filter((channel) => channel.active),
+        );
+        return;
+      }
+
+      if (pathname === "/tv" || pathname === "/tv/") {
+        const channels = await listChannels();
+        const activeChannels = channels.filter(
+          (channel) => channel.active,
+        );
+
+        sendHtml(res, 200, renderChannelList(activeChannels));
+        return;
+      }
+
+      if (pathname.startsWith("/tv/")) {
+        const slug = decodeURIComponent(
+          pathname.slice("/tv/".length),
+        );
+
+        const channel = await getChannelBySlug(slug);
+
+        if (!channel) {
+          sendHtml(
+            res,
+            404,
+            renderLayout(
+              "Canal no encontrado",
+              `
+              <main class="container">
+                <div class="message">
+                  El canal solicitado no existe.
+                </div>
+              </main>
+              `,
+            ),
+          );
+          return;
+        }
+
+        if (!channel.active) {
+          sendHtml(
+            res,
+            403,
+            renderLayout(
+              "Canal desactivado",
+              `
+              <main class="container">
+                <div class="message">
+                  Este canal se encuentra temporalmente desactivado.
+                </div>
+              </main>
+              `,
+            ),
+          );
+          return;
+        }
+
+        sendHtml(res, 200, renderPlayer(channel));
+        return;
+      }
+
+      sendJson(res, 404, {
+        error: "not found",
+      });
+    } catch (error) {
+      logger.error("Error HTTP:", error.message);
+
+      sendJson(res, 500, {
+        error: "internal server error",
+      });
+    }
+  });
+
+  server.listen(config.port, () => {
+    logger.info(`Servidor escuchando en el puerto ${config.port}`);
+  });
+
+  return server;
+}
