@@ -5,6 +5,11 @@ import {
   getChannelBySlug,
   listChannels,
 } from "./channels.js";
+import { importM3uContent } from "./m3u.js";
+
+import {
+  listM3uSources,
+} from "./m3u-sources.js";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -545,6 +550,13 @@ export function startHealthServer() {
         });
         return;
       }
+      if (pathname === "/api/admin/import/sources") {
+  const sources = await listM3uSources();
+
+  sendJson(res, 200, sources);
+
+  return;
+}
 
       if (pathname === "/api/channels") {
         const channels = await listChannels();
