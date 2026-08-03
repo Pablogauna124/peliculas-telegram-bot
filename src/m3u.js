@@ -1,10 +1,19 @@
-import {
-  createChannel,
-  updateChannelUrl,
-} from "./channels.js";
+import { supabase } from "./supabase.js";
+
+const BATCH_SIZE = 100;
+const LOOKUP_SIZE = 200;
 
 function cleanValue(value) {
   return String(value || "").trim();
+}
+
+function normalizeSlug(value) {
+  return cleanValue(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function getAttribute(line, attribute) {
@@ -22,6 +31,28 @@ function getChannelName(infoLine) {
   }
 
   return cleanValue(infoLine.slice(commaIndex + 1)) || "Canal sin nombre";
+}
+
+function detectChannelType(url) {
+  const value = String(url || "").toLowerCase();
+
+  if (value.includes(".m3u8")) return "m3u8";
+  if (value.includes(".m3u")) return "m3u";
+  if (value.includes(".mp4")) return "mp4";
+  if (value.includes(".webm")) return "webm";
+  if (value.includes(".ts")) return "ts";
+
+  return "url";
+}
+
+function splitIntoBatches(items, size) {
+  const batches = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size));
+  }
+
+  return batches;
 }
 
 export function parseM3u(content) {
@@ -49,18 +80,59 @@ export function parseM3u(content) {
     }
 
     if (currentInfo && /^https?:\/\//i.test(line)) {
-      channels.push({
-        name: currentInfo.name,
-        url: line,
-        logo: currentInfo.logo,
-        category: currentInfo.category,
-      });
+      const slug = normalizeSlug(currentInfo.name);
+
+      if (slug) {
+        channels.push({
+          name: currentInfo.name,
+          slug,
+          url: line,
+          type: detectChannelType(line),
+          logo: currentInfo.logo,
+          category: currentInfo.category,
+          active: true,
+        });
+      }
 
       currentInfo = null;
     }
   }
 
-  return channels;
+  /*
+   * Evita errores cuando una lista contiene varios canales
+   * con exactamente el mismo nombre y slug.
+   */
+  const uniqueChannels = new Map();
+
+  for (const channel of channels) {
+    uniqueChannels.set(channel.slug, channel);
+  }
+
+  return Array.from(uniqueChannels.values());
+}
+
+async function findExistingSlugs(slugs) {
+  const existing = new Set();
+  const batches = splitIntoBatches(slugs, LOOKUP_SIZE);
+
+  for (const batch of batches) {
+    const { data, error } = await supabase
+      .from("channels")
+      .select("slug")
+      .in("slug", batch);
+
+    if (error) {
+      throw new Error(
+        `No se pudieron comprobar los canales existentes: ${error.message}`,
+      );
+    }
+
+    for (const row of data || []) {
+      existing.add(row.slug);
+    }
+  }
+
+  return existing;
 }
 
 export async function importM3uContent(content) {
@@ -72,38 +144,39 @@ export async function importM3uContent(content) {
     );
   }
 
+  const existingSlugs = await findExistingSlugs(
+    parsedChannels.map((channel) => channel.slug),
+  );
+
   const result = {
     total: parsedChannels.length,
-    created: 0,
-    updated: 0,
+    created: parsedChannels.filter(
+      (channel) => !existingSlugs.has(channel.slug),
+    ).length,
+    updated: parsedChannels.filter(
+      (channel) => existingSlugs.has(channel.slug),
+    ).length,
     failed: 0,
     errors: [],
   };
 
-  for (const channel of parsedChannels) {
-    try {
-      await createChannel(channel);
-      result.created += 1;
-    } catch (error) {
-      const alreadyExists =
-        error.message.includes("Ya existe un canal");
+  const batches = splitIntoBatches(parsedChannels, BATCH_SIZE);
 
-      if (alreadyExists) {
-        try {
-          await updateChannelUrl(channel.name, channel.url);
-          result.updated += 1;
-        } catch (updateError) {
-          result.failed += 1;
-          result.errors.push(
-            `${channel.name}: ${updateError.message}`,
-          );
-        }
-      } else {
-        result.failed += 1;
-        result.errors.push(
-          `${channel.name}: ${error.message}`,
-        );
-      }
+  for (let index = 0; index < batches.length; index += 1) {
+    const batch = batches[index];
+
+    const { error } = await supabase
+      .from("channels")
+      .upsert(batch, {
+        onConflict: "slug",
+        ignoreDuplicates: false,
+      });
+
+    if (error) {
+      result.failed += batch.length;
+      result.errors.push(
+        `Lote ${index + 1}: ${error.message}`,
+      );
     }
   }
 
