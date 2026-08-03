@@ -1,4 +1,8 @@
 import http from "node:http";
+import { config } from "./config.js";
+import { logger } from "./logger.js";
+import { getChannelBySlug, listChannels } from "./channels.js";
+import http from "node:http";
 import { createChannel, updateChannelUrl } from "./channels.js";
 
 function cleanValue(value) {
