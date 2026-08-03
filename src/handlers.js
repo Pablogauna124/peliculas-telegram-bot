@@ -18,10 +18,6 @@ import {
 
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
-/*
- * Guarda temporalmente las operaciones activas.
- * Las sesiones se pierden si Render se reinicia.
- */
 const sessions = new Map();
 
 const WELCOME =
@@ -314,22 +310,36 @@ async function downloadTextFile(fileId) {
 }
 
 async function fetchM3uFromUrl(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept:
-        "application/vnd.apple.mpegurl, application/x-mpegURL, text/plain, */*",
-    },
-    redirect: "follow",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  if (!response.ok) {
-    throw new Error(
-      `No se pudo descargar la lista desde la URL [${response.status}]`,
-    );
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        Accept:
+          "application/vnd.apple.mpegurl, application/x-mpegURL, text/plain, */*",
+      },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `No se pudo descargar la lista desde la URL [${response.status}]`,
+      );
+    }
+
+    return response.text();
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("La descarga de la lista tardó demasiado.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.text();
 }
 
 async function importM3uAndReply(chatId, content) {
@@ -586,8 +596,19 @@ export async function handleUpdate(update) {
 
   if (text === "/cancelar") {
     sessions.delete(chatId);
-    await sendMessage(chatId, "❎ Operación cancelada.");
+
+    await sendMessage(
+      chatId,
+      "❎ Operación cancelada.",
+    );
+
     return;
+  }
+
+  if (text?.startsWith("/")) {
+    const handled = await handleTextCommand(chatId, text);
+
+    if (handled) return;
   }
 
   if (isWaitingM3u(chatId)) {
@@ -595,9 +616,12 @@ export async function handleUpdate(update) {
       const m3uDocument = extractM3uDocument(message);
 
       if (m3uDocument) {
-        const content = await downloadTextFile(m3uDocument.fileId);
+        const content = await downloadTextFile(
+          m3uDocument.fileId,
+        );
 
         sessions.delete(chatId);
+
         await importM3uAndReply(chatId, content);
         return;
       }
@@ -606,12 +630,14 @@ export async function handleUpdate(update) {
         const content = await fetchM3uFromUrl(text);
 
         sessions.delete(chatId);
+
         await importM3uAndReply(chatId, content);
         return;
       }
 
       if (text && text.includes("#EXTM3U")) {
         sessions.delete(chatId);
+
         await importM3uAndReply(chatId, text);
         return;
       }
@@ -619,18 +645,23 @@ export async function handleUpdate(update) {
       await sendMessage(
         chatId,
         "❌ No pude reconocer una lista M3U.\n\n" +
-          "Enviá un archivo .m3u, .m3u8, una URL pública o el contenido que empiece con <code>#EXTM3U</code>.",
+          "Enviá un archivo .m3u, .m3u8, una URL pública " +
+          "o contenido que empiece con <code>#EXTM3U</code>.",
       );
 
       return;
     } catch (error) {
       sessions.delete(chatId);
 
-      logger.error("Fallo importando M3U:", error.message);
+      logger.error(
+        "Fallo importando M3U:",
+        error.message,
+      );
 
       await sendMessage(
         chatId,
-        `❌ <b>No se pudo importar la lista</b>\n\n${escapeHtml(error.message)}`,
+        "❌ <b>No se pudo importar la lista</b>\n\n" +
+          escapeHtml(error.message),
       );
 
       return;
@@ -639,13 +670,19 @@ export async function handleUpdate(update) {
 
   if (text && sessions.has(chatId)) {
     try {
-      const handled = await processCreateChannel(chatId, text);
+      const handled = await processCreateChannel(
+        chatId,
+        text,
+      );
 
       if (handled) return;
     } catch (error) {
       sessions.delete(chatId);
 
-      logger.error("Error en la conversación:", error.message);
+      logger.error(
+        "Error en la conversación:",
+        error.message,
+      );
 
       await sendMessage(
         chatId,
@@ -657,7 +694,10 @@ export async function handleUpdate(update) {
   }
 
   if (text) {
-    const handled = await handleTextCommand(chatId, text);
+    const handled = await handleTextCommand(
+      chatId,
+      text,
+    );
 
     if (handled) return;
   }
@@ -669,10 +709,8 @@ export async function handleUpdate(update) {
     return;
   }
 
-  if (text) {
-    await sendMessage(
-      chatId,
-      "No reconocí ese comando. Usá <code>/help</code> para ver las opciones.",
-    );
-  }
+  await sendMessage(
+    chatId,
+    "No reconocí ese mensaje. Usá <code>/help</code> para ver las opciones.",
+  );
 }
