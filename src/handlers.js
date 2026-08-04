@@ -4,6 +4,7 @@ import {
   sendMessage,
   getFile,
   buildFileUrl,
+  answerCallbackQuery,
 } from "./telegram.js";
 import { logger } from "./logger.js";
 import { importM3uContent } from "./m3u.js";
