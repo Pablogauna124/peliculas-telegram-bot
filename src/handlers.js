@@ -5,6 +5,7 @@ import { confirmDeleteChannel } from "./actions/confirm-delete-channel.js";
 import { showDeleteListMenu } from "./actions/delete-list.js";
 import { confirmDeleteList } from "./actions/confirm-delete-list.js";
 import { exportPlaylist } from "./actions/export-playlist.js";
+import { processChannelLogoPhoto } from "./actions/upload-channel-logo.js";
 
 import {
   sendMessage,
@@ -1004,6 +1005,32 @@ export async function handleUpdate(update) {
       return;
     }
   }
+
+  if (message.photo?.length && sessions.has(chatId)) {
+  try {
+    const handled = await processChannelLogoPhoto({
+      chatId,
+      message,
+      sessions,
+      getFile,
+      buildFileUrl,
+      uploadToStorage,
+      createChannel,
+      sendMessage,
+    });
+
+    if (handled) return;
+  } catch (error) {
+    sessions.delete(chatId);
+
+    await sendMessage(
+      chatId,
+      `❌ ${escapeHtml(error.message)}`,
+    );
+
+    return;
+  }
+}
 
   if (text && sessions.has(chatId)) {
     try {
