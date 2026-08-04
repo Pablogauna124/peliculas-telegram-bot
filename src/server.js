@@ -6,6 +6,7 @@ import {
   listChannels,
 } from "./channels.js";
 import { importM3uContent } from "./m3u.js";
+import { importAllActiveSources } from "./import-service.js";
 
 import {
   listM3uSources,
@@ -550,13 +551,26 @@ export function startHealthServer() {
         });
         return;
       }
-      if (pathname === "/api/admin/import/sources") {
-  const sources = await listM3uSources();
+            if (pathname === "/api/admin/import/sources") {
+        const sources = await listM3uSources();
 
-  sendJson(res, 200, sources);
+        sendJson(res, 200, sources);
+        return;
+      }
 
-  return;
-}
+      if (
+        pathname === "/api/admin/import/all" &&
+        req.method === "POST"
+      ) {
+        const result = await importAllActiveSources();
+
+        sendJson(res, 200, {
+          success: true,
+          result,
+        });
+
+        return;
+      }
 
       if (pathname === "/api/channels") {
         const channels = await listChannels();
