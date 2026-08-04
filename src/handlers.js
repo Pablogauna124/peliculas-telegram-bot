@@ -505,9 +505,12 @@ async function handleTextCommand(chatId, text) {
     switch (command) {
       case "/start":
       case "/help":
-        await sendMessage(chatId, WELCOME);
+        await sendMessage(
+          chatId,
+          "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
+          getMainMenuKeyboard(),
+        );
         return true;
-
       case "/nuevo":
       case "/agregarcanal":
         if (argumentsText) {
@@ -796,8 +799,72 @@ async function handleTextCommand(chatId, text) {
     return true;
   }
 }
+async function handleCallbackQuery(callback) {
+  const chatId = callback.message.chat.id;
+
+  switch (callback.data) {
+
+    case "menu_home":
+      await sendMessage(
+        chatId,
+        "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
+        getMainMenuKeyboard(),
+      );
+      return;
+
+    case "menu_channels":
+      await sendMessage(
+        chatId,
+        "📺 <b>Administración de canales</b>",
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: "➕ Agregar canal",
+                  callback_data: "channel_add",
+                },
+              ],
+              [
+                {
+                  text: "📋 Listar canales",
+                  callback_data: "channel_list",
+                },
+              ],
+              [
+                {
+                  text: "⬅️ Volver",
+                  callback_data: "menu_home",
+                },
+              ],
+            ],
+          },
+        },
+      );
+      return;
+
+    case "channel_add":
+      await startCreateChannel(chatId);
+      return;
+
+    case "channel_list":
+      await handleListChannels(chatId);
+      return;
+
+    default:
+      await sendMessage(chatId, "🚧 Esta opción estará disponible próximamente.");
+      return;
+  }
+}
 export async function handleUpdate(update) {
-  const message = update.message || update.edited_message;
+  const callback = update.callback_query;
+
+  if (callback) {
+    return handleCallbackQuery(callback);
+  }
+
+  const message =
+    update.message || update.edited_message;
 
   if (!message?.chat?.id) return;
 
