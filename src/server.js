@@ -7,6 +7,7 @@ import {
 } from "./channels.js";
 import { importM3uContent } from "./m3u.js";
 import { importAllActiveSources } from "./import-service.js";
+import { checkChannelById } from "./channel-checker.js";
 import { supabase } from "./supabase.js";
 
 import {
@@ -607,7 +608,25 @@ export function startHealthServer() {
         sendJson(res, 200, data || []);
         return;
       }
+      if (
+        pathname.startsWith("/api/admin/channels/") &&
+        pathname.endsWith("/check") &&
+        req.method === "POST"
+      ) {
+        const channelId = pathname
+          .replace("/api/admin/channels/", "")
+          .replace("/check", "");
 
+        const channel = await checkChannelById(channelId);
+
+        sendJson(res, 200, {
+          success: true,
+          channel,
+        });
+
+        return;
+      }
+      
       if (pathname === "/api/channels") {
         const channels = await listChannels();
 
