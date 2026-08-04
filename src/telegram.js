@@ -50,9 +50,15 @@ export function getUpdates(offset, signal) {
   );
 }
 
-export function sendMessage(chatId, text, extra = {}) {
-  return callApi("sendMessage", {
+export function editMessageText(
+  chatId,
+  messageId,
+  text,
+  extra = {},
+) {
+  return callApi("editMessageText", {
     chat_id: chatId,
+    message_id: messageId,
     text,
     parse_mode: "HTML",
     disable_web_page_preview: false,
