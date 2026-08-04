@@ -835,6 +835,10 @@ case "list_show":
   await handleTextCommand(chatId, "/listas");
   return;
 
+case "list_add":
+  await handleTextCommand(chatId, "/agregarlista");
+  return;
+
 case "channel_add":
   await startCreateChannel(chatId);
   return;
