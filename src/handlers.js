@@ -28,28 +28,13 @@ import {
 } from "./m3u-sources.js";
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
+import {
+  getMainMenuKeyboard,
+  showHomeMenu,
+} from "./menus/home.js";
+
 const sessions = new Map();
 
-function getMainMenuKeyboard() {
-  return {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "📺 Canales", callback_data: "menu_channels" },
-          { text: "📥 Listas M3U", callback_data: "menu_lists" },
-        ],
-        [
-          { text: "👥 Usuarios", callback_data: "menu_users" },
-          { text: "📡 Verificaciones", callback_data: "menu_checks" },
-        ],
-        [
-          { text: "📊 Estadísticas", callback_data: "menu_stats" },
-          { text: "⚙️ Configuración", callback_data: "menu_settings" },
-        ],
-      ],
-    },
-  };
-}
 const WELCOME =
   "🎬 <b>Películas PG Bot</b>\n\n" +
   "Podés subir videos y administrar canales de televisión.\n\n" +
@@ -505,19 +490,20 @@ async function handleTextCommand(chatId, text) {
   const command = getCommand(text);
   const argumentsText = getCommandArguments(text);
 
-  try {
-    switch (command) {
-      case "/start":
-      case "/help":
-        await sendMessage(
-          chatId,
-          "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
-          getMainMenuKeyboard(),
-        );
-        return true;
-      case "/nuevo":
-      case "/agregarcanal":
-        if (argumentsText) {
+try {
+  switch (command) {
+    case "/start":
+    case "/help":
+      await showHomeMenu({
+        chatId,
+        sendMessage,
+        editMessageText,
+      });
+      return true;
+
+    case "/nuevo":
+    case "/agregarcanal":
+      if (argumentsText) {
           const [name, url, category = "General", logo = ""] =
             splitArguments(argumentsText);
 
