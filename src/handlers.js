@@ -828,25 +828,31 @@ case "menu_channels":
     {
       reply_markup: {
         inline_keyboard: [
-          [
-            {
-              text: "➕ Agregar canal",
-              callback_data: "channel_add",
-            },
-          ],
-          [
-            {
-              text: "📋 Listar canales",
-              callback_data: "channel_list",
-            },
-          ],
-          [
-            {
-              text: "⬅️ Volver",
-              callback_data: "menu_home",
-            },
-          ],
-        ],
+  [
+    {
+      text: "➕ Agregar canal",
+      callback_data: "channel_add",
+    },
+  ],
+  [
+    {
+      text: "📋 Listar canales",
+      callback_data: "channel_list",
+    },
+  ],
+  [
+    {
+      text: "🗑️ Eliminar canal",
+      callback_data: "channel_delete",
+    },
+  ],
+  [
+    {
+      text: "⬅️ Volver",
+      callback_data: "menu_home",
+    },
+  ],
+],
       },
     },
   );
