@@ -1,6 +1,7 @@
 import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
 import { showDeleteChannelMenu } from "./actions/delete-channel.js";
+import { confirmDeleteChannel } from "./actions/confirm-delete-channel.js";
 
 import {
   sendMessage,
@@ -809,7 +810,19 @@ async function handleCallbackQuery(callback) {
 
   const chatId = callback.message.chat.id;
   const messageId = callback.message.message_id;
+  
+if (callback.data.startsWith("delete_channel:")) {
+  const slug = callback.data.replace("delete_channel:", "");
 
+  await confirmDeleteChannel(
+    chatId,
+    slug,
+    sendMessage,
+  );
+
+  return;
+}
+  
   switch (callback.data) {
       
 case "menu_home":
