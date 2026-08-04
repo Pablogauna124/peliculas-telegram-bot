@@ -40,7 +40,11 @@ export function getUpdates(offset, signal) {
     {
       offset,
       timeout: config.pollTimeoutSeconds,
-      allowed_updates: ["message", "edited_message"],
+      allowed_updates: [
+        "message",
+        "edited_message",
+        "callback_query",
+      ],
     },
     { signal },
   );
