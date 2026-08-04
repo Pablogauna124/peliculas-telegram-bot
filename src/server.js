@@ -25,6 +25,9 @@ function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   });
 
   res.end(JSON.stringify(data));
@@ -543,6 +546,17 @@ export function startHealthServer() {
       );
 
       const pathname = requestUrl.pathname;
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        });
+
+        res.end();
+        return;
+      }
 
       if (pathname === "/" || pathname === "/health") {
         sendJson(res, 200, {
