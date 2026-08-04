@@ -11,7 +11,7 @@ export async function showDeleteChannelMenu(chatId, sendMessage) {
   const keyboard = channels.map((channel) => [
     {
       text: `🗑️ ${channel.name}`,
-      callback_data: `delete_channel:${channel.id}`,
+      callback_data: `delete_channel:${channel.slug}`,
     },
   ]);
 
