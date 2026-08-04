@@ -801,6 +801,8 @@ async function handleTextCommand(chatId, text) {
   }
 }
 async function handleCallbackQuery(callback) {
+  await answerCallbackQuery(callback.id);
+
   const chatId = callback.message.chat.id;
 
   switch (callback.data) {
