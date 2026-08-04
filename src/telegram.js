@@ -69,3 +69,10 @@ export function getFile(fileId) {
 export function buildFileUrl(filePath) {
   return `${FILE_BASE}/${filePath}`;
 }
+
+export function answerCallbackQuery(callbackId, text = "") {
+  return callApi("answerCallbackQuery", {
+    callback_query_id: callbackId,
+    text,
+  });
+}
