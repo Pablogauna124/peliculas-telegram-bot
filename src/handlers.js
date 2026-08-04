@@ -4,6 +4,7 @@ import { showDeleteChannelMenu } from "./actions/delete-channel.js";
 import { confirmDeleteChannel } from "./actions/confirm-delete-channel.js";
 import { showDeleteListMenu } from "./actions/delete-list.js";
 import { confirmDeleteList } from "./actions/confirm-delete-list.js";
+import { exportPlaylist } from "./actions/export-playlist.js";
 
 import {
   sendMessage,
