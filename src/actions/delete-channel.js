@@ -1,6 +1,6 @@
 import { listChannels } from "../channels.js";
 
-export async function handleDeleteChannel(chatId, sendMessage) {
+export async function showDeleteChannelMenu(chatId, sendMessage) {
   const channels = await listChannels();
 
   if (!channels.length) {
