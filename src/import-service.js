@@ -1,5 +1,6 @@
 import { importM3uContent } from "./m3u.js";
 import { listM3uSources } from "./m3u-sources.js";
+import { supabase } from "./supabase.js";
 
 async function fetchM3uFromUrl(url) {
   const controller = new AbortController();
@@ -35,6 +36,8 @@ async function fetchM3uFromUrl(url) {
 }
 
 export async function importAllActiveSources() {
+  const startedAt = Date.now();
+
   const sources = await listM3uSources({
     onlyActive: true,
   });
@@ -79,5 +82,32 @@ export async function importAllActiveSources() {
     }
   }
 
-  return result;
+  const durationMs = Date.now() - startedAt;
+  const status = result.sourcesFailed > 0 ? "completed_with_errors" : "completed";
+
+  const { error: historyError } = await supabase
+    .from("import_history")
+    .insert({
+      source: "Todas las listas activas",
+      status,
+      channels: result.channelsTotal,
+      new_channels: result.channelsCreated,
+      updated_channels: result.channelsUpdated,
+      errors: result.channelsFailed + result.sourcesFailed,
+      duration_ms: durationMs,
+      details: result.details,
+    });
+
+  if (historyError) {
+    console.error(
+      "No se pudo guardar el historial de importación:",
+      historyError.message,
+    );
+  }
+
+  return {
+    ...result,
+    durationMs,
+    status,
+  };
 }
