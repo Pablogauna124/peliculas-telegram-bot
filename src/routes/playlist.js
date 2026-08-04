@@ -13,7 +13,7 @@ export async function handlePlaylistRoute(req, res, pathname) {
   const playlist = createM3uPlaylist(channels);
 
   res.writeHead(200, {
-    "Content-Type": "audio/x-mpegurl; charset=utf-8",
+    "Content-Type": "text/plain; charset=utf-8",
     "Content-Disposition": 'inline; filename="playlist.m3u"',
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
