@@ -37,11 +37,14 @@ export function renderChannelList(channels) {
               data-category="${escapeHtml(category.toLowerCase())}"
             >
               <div class="channel-logo">
+                <span class="live-badge">● EN VIVO</span>
                 ${logo}
               </div>
 
               <div class="channel-info-card">
-                <div class="channel-name">${escapeHtml(channel.name)}</div>
+                <div class="channel-name">
+                  ${escapeHtml(channel.name)}
+                </div>
               </div>
             </a>
           `;
@@ -77,8 +80,8 @@ export function renderChannelList(channels) {
       `;
     })
     .join("");
-
-  return renderLayout(
+  
+    return renderLayout(
     "TV en vivo",
     `
     <main class="container">
@@ -116,7 +119,12 @@ export function renderChannelList(channels) {
             rgba(5, 6, 8, 0.95),
             rgba(5, 6, 8, 0.25)
           ),
-          radial-gradient(circle at right, #ef3340 0%, #151a27 48%, #080a10 100%);
+          radial-gradient(
+            circle at right,
+            #ef3340 0%,
+            #151a27 48%,
+            #080a10 100%
+          );
       }
 
       .hero-overlay {
@@ -177,8 +185,7 @@ export function renderChannelList(channels) {
         font-size: 28px;
         cursor: pointer;
       }
-
-      .channel-row {
+       .channel-row {
         display: flex;
         gap: 16px;
         overflow-x: auto;
@@ -197,7 +204,9 @@ export function renderChannelList(channels) {
         border: 1px solid #252c3d;
         border-radius: 14px;
         background: #111624;
-        transition: transform 0.2s ease, border-color 0.2s ease;
+        transition:
+          transform 0.2s ease,
+          border-color 0.2s ease;
       }
 
       .channel-card:hover {
@@ -206,6 +215,7 @@ export function renderChannelList(channels) {
       }
 
       .channel-logo {
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -218,6 +228,20 @@ export function renderChannelList(channels) {
         width: 100%;
         height: 100%;
         object-fit: contain;
+      }
+
+      .live-badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 5px 8px;
+        border-radius: 6px;
+        background: #e50914;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        z-index: 2;
       }
 
       .channel-info-card {
@@ -264,7 +288,8 @@ export function renderChannelList(channels) {
 
       const search = document.getElementById("channel-search");
       const cards = document.querySelectorAll(".channel-card");
-      const sections = document.querySelectorAll(".category-section");
+      const categorySections =
+        document.querySelectorAll(".category-section");
 
       search?.addEventListener("input", () => {
         const value = search.value.trim().toLowerCase();
@@ -272,18 +297,21 @@ export function renderChannelList(channels) {
         cards.forEach((card) => {
           const name = card.dataset.name || "";
           const category = card.dataset.category || "";
+
           const visible =
-            name.includes(value) || category.includes(value);
+            name.includes(value) ||
+            category.includes(value);
 
           card.style.display = visible ? "" : "none";
         });
 
-        sections.forEach((section) => {
+        categorySections.forEach((section) => {
           const visibleCards = Array.from(
             section.querySelectorAll(".channel-card"),
           ).some((card) => card.style.display !== "none");
 
-          section.style.display = visibleCards ? "" : "none";
+          section.style.display =
+            visibleCards ? "" : "none";
         });
       });
     </script>
