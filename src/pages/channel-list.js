@@ -1,13 +1,5 @@
 import { renderLayout } from "./layout.js";
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+import { escapeHtml } from "../utils/html.js";
 
 export function renderChannelList(channels) {
   const cards = channels
