@@ -22,6 +22,12 @@ export function getListsMenuKeyboard() {
         ],
         [
           {
+            text: "📤 Exportar playlist",
+            callback_data: "playlist_export",
+          },
+        ],
+        [
+          {
             text: "🗑️ Eliminar lista",
             callback_data: "list_delete",
           },
