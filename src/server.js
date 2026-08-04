@@ -5,6 +5,7 @@ import {
   getChannelBySlug,
   listChannels,
 } from "./channels.js";
+import { escapeHtml } from "./utils/html.js";
 import { importAllActiveSources } from "./import-service.js";
 import { checkChannelById } from "./channel-checker.js";
 import { handlePlaylistRoute } from "./routes/playlist.js";
@@ -12,19 +13,9 @@ import { renderLayout } from "./pages/layout.js";
 import { renderChannelList } from "./pages/channel-list.js";
 import { supabase } from "./supabase.js";
 
-
 import {
   listM3uSources,
 } from "./m3u-sources.js";
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function sendJson(res, status, data) {
   res.writeHead(status, {
