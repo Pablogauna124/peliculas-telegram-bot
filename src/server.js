@@ -7,6 +7,7 @@ import {
 } from "./channels.js";
 import { importM3uContent } from "./m3u.js";
 import { importAllActiveSources } from "./import-service.js";
+import { supabase } from "./supabase.js";
 
 import {
   listM3uSources,
@@ -583,6 +584,27 @@ export function startHealthServer() {
           result,
         });
 
+        return;
+      }
+
+        if (
+        pathname === "/api/admin/import/history" &&
+        req.method === "GET"
+      ) {
+        const { data, error } = await supabase
+          .from("import_history")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (error) {
+          sendJson(res, 500, {
+            error: error.message,
+          });
+          return;
+        }
+
+        sendJson(res, 200, data || []);
         return;
       }
 
