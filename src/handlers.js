@@ -42,6 +42,11 @@ import {
   showListsMenu,
 } from "./menus/lists.js";
 
+import {
+  startAddM3uSource,
+  processAddM3uSource,
+} from "./actions/add-m3u-source.js";
+
 const sessions = new Map();
 
 const WELCOME =
@@ -849,7 +854,11 @@ case "list_show":
   return;
 
 case "list_add":
-  await startAddM3uSource(chatId);
+  await startAddM3uSource({
+    chatId,
+    sessions,
+    sendMessage,
+  });
   return;
 
 case "channel_add":
@@ -973,7 +982,15 @@ export async function handleUpdate(update) {
       const session = sessions.get(chatId);
 
 if (session?.action === "add-m3u-source") {
-  const handled = await processAddM3uSource(chatId, text);
+  const handled = await processAddM3uSource({
+  chatId,
+  text,
+  sessions,
+  sendMessage,
+  addM3uSource,
+  isValidUrl,
+  escapeHtml,
+});
 
   if (handled) return;
 }
