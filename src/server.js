@@ -8,7 +8,9 @@ import {
 import { importM3uContent } from "./m3u.js";
 import { importAllActiveSources } from "./import-service.js";
 import { checkChannelById } from "./channel-checker.js";
+import { createM3uPlaylist } from "./services/playlist.js";
 import { supabase } from "./supabase.js";
+
 
 import {
   listM3uSources,
