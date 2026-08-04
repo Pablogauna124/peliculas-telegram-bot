@@ -173,19 +173,6 @@ function startImportM3u(chatId) {
   });
 }
 
-async function startAddM3uSource(chatId) {
-  sessions.set(chatId, {
-    action: "add-m3u-source",
-    step: "name",
-    data: {},
-  });
-
-  await sendMessage(
-    chatId,
-    "📥 <b>Nueva lista M3U</b>\n\nEnviame el nombre de la lista.",
-  );
-}
-
 function isWaitingM3u(chatId) {
   return sessions.get(chatId)?.action === "import-m3u";
 }
