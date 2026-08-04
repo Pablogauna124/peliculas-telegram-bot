@@ -38,6 +38,10 @@ import {
   showChannelsMenu,
 } from "./menus/channels.js";
 
+import {
+  showListsMenu,
+} from "./menus/lists.js";
+
 const sessions = new Map();
 
 const WELCOME =
@@ -817,6 +821,18 @@ case "menu_channels":
     messageId,
     editMessageText,
   });
+  return;
+
+case "menu_lists":
+  await showListsMenu({
+    chatId,
+    messageId,
+    editMessageText,
+  });
+  return;
+
+case "list_show":
+  await handleTextCommand(chatId, "/listas");
   return;
 
 case "channel_add":
