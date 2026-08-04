@@ -2,6 +2,8 @@ import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
 import { showDeleteChannelMenu } from "./actions/delete-channel.js";
 import { confirmDeleteChannel } from "./actions/confirm-delete-channel.js";
+import { showDeleteListMenu } from "./actions/delete-list.js";
+import { confirmDeleteList } from "./actions/confirm-delete-list.js";
 
 import {
   sendMessage,
@@ -822,6 +824,18 @@ if (callback.data.startsWith("delete_channel:")) {
 
   return;
 }
+
+if (callback.data.startsWith("delete_list:")) {
+  const name = callback.data.replace("delete_list:", "");
+
+  await confirmDeleteList(
+    chatId,
+    name,
+    sendMessage,
+  );
+
+  return;
+}
   
   switch (callback.data) {
       
@@ -872,6 +886,10 @@ case "channel_delete":
 
 case "channel_list":
   await handleListChannels(chatId);
+  return;
+
+case "list_delete":
+  await showDeleteListMenu(chatId, sendMessage);
   return;
 
     default:
