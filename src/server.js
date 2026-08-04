@@ -9,6 +9,7 @@ import { importM3uContent } from "./m3u.js";
 import { importAllActiveSources } from "./import-service.js";
 import { checkChannelById } from "./channel-checker.js";
 import { createM3uPlaylist } from "./services/playlist.js";
+import { handlePlaylistRoute } from "./routes/playlist.js";
 import { supabase } from "./supabase.js";
 
 
@@ -550,6 +551,10 @@ export function startHealthServer() {
       );
 
       const pathname = requestUrl.pathname;
+
+      if (await handlePlaylistRoute(req, res, pathname)) {
+      return;
+    }
 
       if (req.method === "OPTIONS") {
         res.writeHead(204, {
