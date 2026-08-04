@@ -1,11 +1,14 @@
 import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
+
 import {
   sendMessage,
+  editMessageText,
+  answerCallbackQuery,
   getFile,
   buildFileUrl,
-  answerCallbackQuery,
 } from "./telegram.js";
+
 import { logger } from "./logger.js";
 import { importM3uContent } from "./m3u.js";
 
@@ -804,55 +807,58 @@ async function handleCallbackQuery(callback) {
   await answerCallbackQuery(callback.id);
 
   const chatId = callback.message.chat.id;
+  const messageId = callback.message.message_id;
 
   switch (callback.data) {
+      
+case "menu_home":
+  await editMessageText(
+    chatId,
+    messageId,
+    "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
+    getMainMenuKeyboard(),
+  );
+  return;
 
-    case "menu_home":
-      await sendMessage(
-        chatId,
-        "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
-        getMainMenuKeyboard(),
-      );
-      return;
+case "menu_channels":
+  await editMessageText(
+    chatId,
+    messageId,
+    "📺 <b>Administración de canales</b>",
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "➕ Agregar canal",
+              callback_data: "channel_add",
+            },
+          ],
+          [
+            {
+              text: "📋 Listar canales",
+              callback_data: "channel_list",
+            },
+          ],
+          [
+            {
+              text: "⬅️ Volver",
+              callback_data: "menu_home",
+            },
+          ],
+        ],
+      },
+    },
+  );
+  return;
 
-    case "menu_channels":
-      await sendMessage(
-        chatId,
-        "📺 <b>Administración de canales</b>",
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: "➕ Agregar canal",
-                  callback_data: "channel_add",
-                },
-              ],
-              [
-                {
-                  text: "📋 Listar canales",
-                  callback_data: "channel_list",
-                },
-              ],
-              [
-                {
-                  text: "⬅️ Volver",
-                  callback_data: "menu_home",
-                },
-              ],
-            ],
-          },
-        },
-      );
-      return;
+case "channel_add":
+  await startCreateChannel(chatId);
+  return;
 
-    case "channel_add":
-      await startCreateChannel(chatId);
-      return;
-
-    case "channel_list":
-      await handleListChannels(chatId);
-      return;
+case "channel_list":
+  await handleListChannels(chatId);
+  return;
 
     default:
       await sendMessage(chatId, "🚧 Esta opción estará disponible próximamente.");
