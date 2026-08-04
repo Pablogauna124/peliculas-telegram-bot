@@ -50,6 +50,16 @@ export function getUpdates(offset, signal) {
   );
 }
 
+export function sendMessage(chatId, text, extra = {}) {
+  return callApi("sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: false,
+    ...extra,
+  });
+}
+
 export function editMessageText(
   chatId,
   messageId,
