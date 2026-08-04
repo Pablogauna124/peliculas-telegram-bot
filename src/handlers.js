@@ -26,6 +26,26 @@ const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID);
 
 const sessions = new Map();
 
+function getMainMenuKeyboard() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📺 Canales", callback_data: "menu_channels" },
+          { text: "📥 Listas M3U", callback_data: "menu_lists" },
+        ],
+        [
+          { text: "👥 Usuarios", callback_data: "menu_users" },
+          { text: "📡 Verificaciones", callback_data: "menu_checks" },
+        ],
+        [
+          { text: "📊 Estadísticas", callback_data: "menu_stats" },
+          { text: "⚙️ Configuración", callback_data: "menu_settings" },
+        ],
+      ],
+    },
+  };
+}
 const WELCOME =
   "🎬 <b>Películas PG Bot</b>\n\n" +
   "Podés subir videos y administrar canales de televisión.\n\n" +
