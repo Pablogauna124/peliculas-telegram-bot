@@ -168,6 +168,19 @@ function startImportM3u(chatId) {
   });
 }
 
+async function startAddM3uSource(chatId) {
+  sessions.set(chatId, {
+    action: "add-m3u-source",
+    step: "name",
+    data: {},
+  });
+
+  await sendMessage(
+    chatId,
+    "📥 <b>Nueva lista M3U</b>\n\nEnviame el nombre de la lista.",
+  );
+}
+
 function isWaitingM3u(chatId) {
   return sessions.get(chatId)?.action === "import-m3u";
 }
@@ -836,7 +849,7 @@ case "list_show":
   return;
 
 case "list_add":
-  await handleTextCommand(chatId, "/agregarlista");
+  await startAddM3uSource(chatId);
   return;
 
 case "channel_add":
@@ -957,6 +970,13 @@ export async function handleUpdate(update) {
 
   if (text && sessions.has(chatId)) {
     try {
+      const session = sessions.get(chatId);
+
+if (session?.action === "add-m3u-source") {
+  const handled = await processAddM3uSource(chatId, text);
+
+  if (handled) return;
+}
       const handled = await processCreateChannel(
         chatId,
         text,
