@@ -1,6 +1,6 @@
 import { downloadVideo, removeTempFile } from "./downloader.js";
 import { uploadToStorage } from "./storage.js";
-import { handleDeleteChannel } from "./actions/delete-channel.js";
+import { showDeleteChannelMenu } from "./actions/delete-channel.js";
 
 import {
   sendMessage,
@@ -854,7 +854,7 @@ case "channel_add":
   return;
 
 case "channel_delete":
-  await handleDeleteChannel(chatId, sendMessage);
+  await showDeleteChannelMenu(chatId, sendMessage);
   return;
 
 case "channel_list":
