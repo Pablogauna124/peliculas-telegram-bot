@@ -33,6 +33,11 @@ import {
   showHomeMenu,
 } from "./menus/home.js";
 
+import {
+  getChannelsMenuKeyboard,
+  showChannelsMenu,
+} from "./menus/channels.js";
+
 const sessions = new Map();
 
 const WELCOME =
@@ -798,50 +803,20 @@ async function handleCallbackQuery(callback) {
   switch (callback.data) {
       
 case "menu_home":
-  await editMessageText(
+  await showHomeMenu({
     chatId,
     messageId,
-    "🎬 <b>PG IPTV ADMIN</b>\n\nSeleccioná una opción:",
-    getMainMenuKeyboard(),
-  );
+    sendMessage,
+    editMessageText,
+  });
   return;
 
 case "menu_channels":
-  await editMessageText(
+  await showChannelsMenu({
     chatId,
     messageId,
-    "📺 <b>Administración de canales</b>",
-    {
-      reply_markup: {
-        inline_keyboard: [
-  [
-    {
-      text: "➕ Agregar canal",
-      callback_data: "channel_add",
-    },
-  ],
-  [
-    {
-      text: "📋 Listar canales",
-      callback_data: "channel_list",
-    },
-  ],
-  [
-    {
-      text: "🗑️ Eliminar canal",
-      callback_data: "channel_delete",
-    },
-  ],
-  [
-    {
-      text: "⬅️ Volver",
-      callback_data: "menu_home",
-    },
-  ],
-],
-      },
-    },
-  );
+    editMessageText,
+  });
   return;
 
 case "channel_add":
