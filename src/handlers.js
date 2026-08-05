@@ -22,6 +22,7 @@ import {
   createChannel,
   listChannels,
   updateChannelUrl,
+  updateChannelLogo,
   deleteChannel,
   setChannelActive,
 } from "./channels.js";
@@ -467,6 +468,33 @@ async function handleUpdateChannel(chatId, argumentsText) {
   );
 }
 
+async function handleUpdateChannelLogo(chatId, argumentsText) {
+  const [slug, logoUrl] = splitArguments(argumentsText);
+
+  if (!slug || !logoUrl) {
+    await sendMessage(
+      chatId,
+      "Usá:\n" +
+        "<code>/logo slug | URL del logo</code>",
+    );
+    return;
+  }
+
+  if (!isValidUrl(logoUrl)) {
+    await sendMessage(chatId, "❌ La URL del logo no es válida.");
+    return;
+  }
+
+  const channel = await updateChannelLogo(slug, logoUrl);
+
+  await sendMessage(
+    chatId,
+    "✅ <b>Logo actualizado</b>\n\n" +
+      `<b>Canal:</b> ${escapeHtml(channel.name)}\n` +
+      `<b>Slug:</b> <code>${escapeHtml(channel.slug)}</code>`,
+  );
+}
+
 async function handleDeleteChannel(chatId, argumentsText) {
   const slug = argumentsText.trim();
 
@@ -777,6 +805,11 @@ try {
         await handleUpdateChannel(chatId, argumentsText);
         return true;
 
+      case "/logo":
+      case "/actualizarlogo":
+        await handleUpdateChannelLogo(chatId, argumentsText);
+        return true;
+      
       case "/eliminar":
       case "/eliminarcanal":
         await handleDeleteChannel(chatId, argumentsText);
