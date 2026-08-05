@@ -171,3 +171,32 @@ export async function setChannelActive(slug, active) {
 
   return data;
 }
+
+export async function updateChannelLogo(slug, logoUrl) {
+  const normalized = normalizeSlug(slug);
+
+  if (!logoUrl?.trim()) {
+    throw new Error("La URL del logo es obligatoria.");
+  }
+
+  const { data, error } = await supabase
+    .from("channels")
+    .update({
+      logo: logoUrl.trim(),
+    })
+    .eq("slug", normalized)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `No se pudo actualizar el logo: ${error.message}`,
+    );
+  }
+
+  if (!data) {
+    throw new Error("No encontré ese canal.");
+  }
+
+  return data;
+}
