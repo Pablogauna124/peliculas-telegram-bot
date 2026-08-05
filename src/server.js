@@ -78,10 +78,13 @@ function buildEmbedUrl(rawUrl, providerType) {
   const url = new URL(rawUrl);
 
   if (providerType === "youtube") {
+    const parts = url.pathname.split("/").filter(Boolean);
+
     if (url.hostname === "youtu.be") {
-      const videoId = url.pathname.split("/").filter(Boolean)[0];
+      const videoId = parts[0];
+
       return videoId
-        ? `https://www.youtube.com/embed/${videoId}`
+        ? `https://www.youtube.com/embed/${videoId}?autoplay=1`
         : rawUrl;
     }
 
@@ -90,9 +93,24 @@ function buildEmbedUrl(rawUrl, providerType) {
     }
 
     const videoId = url.searchParams.get("v");
-    return videoId
-      ? `https://www.youtube.com/embed/${videoId}`
-      : rawUrl;
+
+    if (videoId) {
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    }
+
+    if (
+      parts[0] === "channel" &&
+      parts[1] &&
+      parts[2] === "live"
+    ) {
+      const channelId = parts[1];
+
+      return `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(
+        channelId,
+      )}&autoplay=1`;
+    }
+
+    return rawUrl;
   }
 
   if (providerType === "vimeo") {
