@@ -66,14 +66,19 @@ function getProviderType(rawUrl, channelType) {
       return "dailymotion";
     }
 
-    if (
-      host === "video.ibm.com" ||
-      host.endsWith(".video.ibm.com") ||
-      host === "ustream.tv" ||
-      host.endsWith(".ustream.tv")
-    ) {
-      return "external";
+if (
+   host === "video.ibm.com" ||
+   host.endsWith(".video.ibm.com")
+  ) {
+      return "ibm";
     }
+
+if (
+  host === "ustream.tv" ||
+  host.endsWith(".ustream.tv")
+) {
+  return "external";
+}
 
     return "external";
   } catch {
@@ -156,10 +161,11 @@ function renderPlayer(channel) {
   let playerHtml = "";
 
   if (
-    providerType === "youtube" ||
-    providerType === "vimeo" ||
-    providerType === "dailymotion"
-  ) {
+  providerType === "youtube" ||
+  providerType === "vimeo" ||
+  providerType === "dailymotion" ||
+  providerType === "ibm"
+) {
     const embedUrl = buildEmbedUrl(sourceUrl, providerType);
 
     playerHtml = `
