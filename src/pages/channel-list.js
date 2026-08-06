@@ -87,7 +87,7 @@ export function renderChannelList(channels) {
     <main class="container">
       <header class="hero">
         <div class="hero-overlay">
-          <div class="brand">Películas <span>PG</span></div>
+          <div class="brand">PG <span>Streaming</span></div>
           <h1>Televisión en vivo</h1>
           <p>Noticias, deportes, entretenimiento y mucho más.</p>
         </div>
