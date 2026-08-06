@@ -115,10 +115,8 @@ function buildEmbedUrl(rawUrl, providerType) {
       parts[1] &&
       parts[2] === "live"
     ) {
-      const channelId = parts[1];
-
       return `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(
-        channelId,
+        parts[1],
       )}&autoplay=1`;
     }
 
@@ -143,8 +141,19 @@ function buildEmbedUrl(rawUrl, providerType) {
       : rawUrl;
   }
 
+  if (providerType === "ibm") {
+    const parts = url.pathname.split("/").filter(Boolean);
+    const index = parts.indexOf("channel");
+    const channelId = index >= 0 ? parts[index + 1] : null;
+
+    return channelId
+      ? `https://video.ibm.com/embed/${encodeURIComponent(channelId)}`
+      : rawUrl;
+  }
+
   return rawUrl;
 }
+
 function renderPlayer(channel) {
   const safeName = escapeHtml(channel.name);
   const safeCategory = escapeHtml(channel.category || "General");
