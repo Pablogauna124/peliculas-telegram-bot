@@ -19,6 +19,16 @@ export function detectChannelType(url) {
   if (value.includes(".webm")) return "webm";
   if (value.includes(".ts")) return "ts";
 
+  try {
+  const parsedUrl = new URL(String(url || ""));
+
+  if (parsedUrl.pathname.endsWith("/playlist.php")) {
+    return "m3u8";
+  }
+} catch {
+  // La validación normal manejará las URL incorrectas.
+}
+  
   return "url";
 }
 
