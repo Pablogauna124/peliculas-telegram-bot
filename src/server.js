@@ -329,6 +329,17 @@ function renderMoviePlayer(movie) {
           allowfullscreen
         ></iframe>
       `;
+      } else if (
+      host === "video.ibm.com" ||
+      host.endsWith(".video.ibm.com")
+   ) {
+      playerHtml = `
+    <iframe
+      src="${escapeHtml(sourceUrl)}"
+      allow="autoplay; fullscreen"
+      allowfullscreen
+    ></iframe>
+  `;
     } else {
       playerHtml = `
         <video
