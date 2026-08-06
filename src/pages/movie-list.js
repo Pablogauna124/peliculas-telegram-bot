@@ -62,7 +62,7 @@ export function renderMovieList(movies) {
     <main class="container">
       <header class="movies-header">
         <div>
-          <div class="brand">Películas <span>PG</span></div>
+          <div class="brand">PG <span>Streaming</span></div>
           <h1>Catálogo de películas</h1>
           <p>Elegí una película y comenzá a verla.</p>
         </div>
