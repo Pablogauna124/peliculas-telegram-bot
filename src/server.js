@@ -237,7 +237,7 @@ function renderPlayer(channel) {
     `
     <main class="container">
       <header class="header">
-        <div class="brand">Películas <span>PG</span></div>
+        <div class="brand">PG <span>Streaming</span></div>
         <a class="back" href="/tv">← Canales</a>
       </header>
 
@@ -374,7 +374,7 @@ function renderMoviePlayer(movie) {
     `
       <main class="container">
         <header class="header">
-          <div class="brand">Películas <span>PG</span></div>
+          <div class="brand">PG <span>Streaming</span></div>
           <a class="back" href="/peliculas">← Películas</a>
         </header>
 
