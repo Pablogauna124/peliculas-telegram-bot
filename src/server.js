@@ -305,6 +305,71 @@ function renderPlayer(channel) {
     `,
   );
 }
+
+function renderMoviePlayer(movie) {
+  const sourceUrl = String(movie.video_url || "");
+  let playerHtml = "";
+
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.toLowerCase();
+
+    if (host.includes("drive.google.com")) {
+      const match = url.pathname.match(/\/file\/d\/([^/]+)/);
+      const fileId = match?.[1];
+
+      const previewUrl = fileId
+        ? `https://drive.google.com/file/d/${fileId}/preview`
+        : sourceUrl;
+
+      playerHtml = `
+        <iframe
+          src="${escapeHtml(previewUrl)}"
+          allow="autoplay; fullscreen"
+          allowfullscreen
+        ></iframe>
+      `;
+    } else {
+      playerHtml = `
+        <video
+          controls
+          playsinline
+          preload="metadata"
+          src="${escapeHtml(sourceUrl)}"
+        ></video>
+      `;
+    }
+  } catch {
+    playerHtml = `<div class="message">El enlace de la película no es válido.</div>`;
+  }
+
+  return renderLayout(
+    movie.title,
+    `
+      <main class="container">
+        <header class="header">
+          <div class="brand">Películas <span>PG</span></div>
+          <a class="back" href="/peliculas">← Películas</a>
+        </header>
+
+        <section class="player-shell">
+          ${playerHtml}
+        </section>
+
+        <section class="channel-info">
+          <h1>${escapeHtml(movie.title)}</h1>
+          <div>${escapeHtml(movie.genre || "General")}</div>
+          ${
+            movie.description
+              ? `<p>${escapeHtml(movie.description)}</p>`
+              : ""
+          }
+        </section>
+      </main>
+    `,
+  );
+}
+
 export function startHealthServer() {
   const server = http.createServer(async (req, res) => {
     try {
