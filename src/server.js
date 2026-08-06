@@ -17,6 +17,13 @@ import {
   listM3uSources,
 } from "./m3u-sources.js";
 
+import {
+  getMovieBySlug,
+  listMovies,
+} from "./movies.js";
+
+import { renderMovieList } from "./pages/movie-list.js";
+
 function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -398,6 +405,25 @@ export function startHealthServer() {
           200,
           channels.filter((channel) => channel.active),
         );
+        return;
+      }
+
+            if (
+        pathname === "/peliculas" ||
+        pathname === "/peliculas/"
+      ) {
+        const movies = await listMovies();
+
+        const activeMovies = movies.filter(
+          (movie) => movie.active,
+        );
+
+        sendHtml(
+          res,
+          200,
+          renderMovieList(activeMovies),
+        );
+
         return;
       }
 
