@@ -30,6 +30,7 @@ import {
 import {
   createMovie,
   listMovies,
+  updateMoviePoster,
   deleteMovie,
   setMovieActive,
 } from "./movies.js";
@@ -629,6 +630,31 @@ async function handleListMovies(chatId) {
   }
 }
 
+async function handleUpdateMoviePoster(chatId, argumentsText) {
+  const [slug, posterUrl] = splitArguments(argumentsText);
+
+  if (!slug || !posterUrl) {
+    await sendMessage(
+      chatId,
+      "Usá: <code>/actualizarportada slug | URL de la portada</code>",
+    );
+    return;
+  }
+
+  if (!isValidUrl(posterUrl)) {
+    await sendMessage(chatId, "❌ La URL de la portada no es válida.");
+    return;
+  }
+
+  const movie = await updateMoviePoster(slug, posterUrl);
+
+  await sendMessage(
+    chatId,
+    "✅ <b>Portada actualizada</b>\n\n" +
+      `<b>Película:</b> ${escapeHtml(movie.title)}`,
+  );
+}
+
 async function handleDeleteMovie(chatId, argumentsText) {
   const slug = argumentsText.trim();
 
@@ -936,6 +962,11 @@ try {
       case "/peliculas":
       case "/listarpeliculas":
         await handleListMovies(chatId);
+        return true;
+
+      case "/actualizarportada":
+      case "/portadapelicula":
+        await handleUpdateMoviePoster(chatId, argumentsText);
         return true;
 
       case "/eliminarpelicula":
