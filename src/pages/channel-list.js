@@ -40,21 +40,21 @@ export function renderChannelList(channels) {
             <strong>${escapeHtml(channel.name)}</strong>
             <small>${escapeHtml(channel.category)}</small>
           </span>
-          <span class="live-dot">â—</span>
+          <span class="live-dot">&#9679;</span>
         </button>`;
     })
     .join("");
 
   return renderLayout(
-    "PG Streaming Â· TV en vivo",
+    "PG Streaming - TV en vivo",
     `
     <main class="tv-app">
       <header class="tv-header">
         <div>
           <div class="brand">PG <span>Streaming</span></div>
-          <div class="tv-subtitle">TelevisiÃ³n en vivo</div>
+          <div class="tv-subtitle">Televisi&oacute;n en vivo</div>
         </div>
-        <a class="movies-button" href="/peliculas">ðŸŽ¬ PelÃ­culas</a>
+        <a class="movies-button" href="/peliculas">&#127916; Pel&iacute;culas</a>
       </header>
 
       ${
@@ -63,18 +63,18 @@ export function renderChannelList(channels) {
           <section class="tv-layout">
             <div class="watch-area">
               <div id="dynamic-player" class="dynamic-player">
-                <div class="player-placeholder">ElegÃ­ un canal para comenzar</div>
+                <div class="player-placeholder">Eleg&iacute; un canal para comenzar</div>
               </div>
 
               <div class="now-playing">
                 <div>
                   <small>REPRODUCIENDO AHORA</small>
-                  <h1 id="current-name">SeleccionÃ¡ un canal</h1>
+                  <h1 id="current-name">Seleccion&aacute; un canal</h1>
                   <p id="current-category">TV en vivo</p>
                 </div>
                 <div class="nav-buttons">
-                  <button id="previous-channel" type="button" aria-label="Canal anterior">â€¹</button>
-                  <button id="next-channel" type="button" aria-label="Canal siguiente">â€º</button>
+                  <button id="previous-channel" type="button" aria-label="Canal anterior">&lsaquo;</button>
+                  <button id="next-channel" type="button" aria-label="Canal siguiente">&rsaquo;</button>
                 </div>
               </div>
             </div>
@@ -84,11 +84,11 @@ export function renderChannelList(channels) {
                 <strong>Canales</strong>
                 <span>${safeChannels.length}</span>
               </div>
-              <input id="channel-search" type="search" placeholder="ðŸ” Buscar canal..." />
+              <input id="channel-search" type="search" placeholder="Buscar canal..." />
               <div id="channel-list" class="channel-list">${items}</div>
             </aside>
           </section>`
-          : `<div class="message">TodavÃ­a no hay canales activos.</div>`
+          : `<div class="message">Todav&iacute;a no hay canales activos.</div>`
       }
     </main>
 
@@ -200,7 +200,7 @@ export function renderChannelList(channels) {
       }
 
       function showError(channel, text) {
-        stage.innerHTML = '<div class="player-error"><div>' + escapeText(text) + '</div><a target="_blank" rel="noopener noreferrer">Abrir transmisiÃ³n</a></div>';
+        stage.innerHTML = '<div class="player-error"><div>' + escapeText(text) + '</div><a target="_blank" rel="noopener noreferrer">Abrir transmision</a></div>';
         stage.querySelector("a").href = channel.url;
       }
 
@@ -225,7 +225,7 @@ export function renderChannelList(channels) {
           return;
         }
         if (type === "external" || type === "m3u") {
-          showError(channel, type === "m3u" ? "Este enlace es una lista M3U." : "Este proveedor debe abrirse en su pÃ¡gina original.");
+          showError(channel, type === "m3u" ? "Este enlace es una lista M3U." : "Este proveedor debe abrirse en su pagina original.");
           return;
         }
 
@@ -240,7 +240,7 @@ export function renderChannelList(channels) {
           currentHls.loadSource(channel.url);
           currentHls.attachMedia(video);
           currentHls.on(Hls.Events.ERROR, (_, data) => {
-            if (data.fatal) { clearPlayer(); showError(channel, "No se pudo cargar la transmisiÃ³n."); }
+            if (data.fatal) { clearPlayer(); showError(channel, "No se pudo cargar la transmision."); }
           });
         } else if (type === "hls" && video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = channel.url;
