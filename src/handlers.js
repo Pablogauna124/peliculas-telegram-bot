@@ -28,6 +28,13 @@ import {
 } from "./channels.js";
 
 import {
+  createMovie,
+  listMovies,
+  deleteMovie,
+  setMovieActive,
+} from "./movies.js";
+
+import {
   addM3uSource,
   listM3uSources,
   deleteM3uSource,
@@ -534,6 +541,133 @@ async function handleChannelStatus(chatId, argumentsText, active) {
   );
 }
 
+async function handleCreateMovie(chatId, argumentsText) {
+  const [
+    title,
+    videoUrl,
+    genre = "General",
+    releaseYear = "",
+    posterUrl = "",
+    description = "",
+  ] = splitArguments(argumentsText);
+
+  if (!title || !videoUrl) {
+    await sendMessage(
+      chatId,
+      "Usá:\n" +
+        "<code>/nuevapelicula Título | URL del video | Género | Año | Portada | Descripción</code>",
+    );
+    return;
+  }
+
+  if (!isValidUrl(videoUrl)) {
+    await sendMessage(chatId, "❌ La URL del video no es válida.");
+    return;
+  }
+
+  if (posterUrl && !isValidUrl(posterUrl)) {
+    await sendMessage(chatId, "❌ La URL de la portada no es válida.");
+    return;
+  }
+
+  const year = releaseYear
+    ? Number.parseInt(releaseYear, 10)
+    : null;
+
+  if (
+    releaseYear &&
+    (!Number.isInteger(year) || year < 1888 || year > 2100)
+  ) {
+    await sendMessage(chatId, "❌ El año no es válido.");
+    return;
+  }
+
+  const movie = await createMovie({
+    title,
+    videoUrl,
+    genre,
+    releaseYear: year,
+    posterUrl: posterUrl || null,
+    description,
+  });
+
+  await sendMessage(
+    chatId,
+    "✅ <b>Película creada correctamente</b>\n\n" +
+      `<b>Título:</b> ${escapeHtml(movie.title)}\n` +
+      `<b>Slug:</b> <code>${escapeHtml(movie.slug)}</code>\n` +
+      `<b>Género:</b> ${escapeHtml(movie.genre)}`,
+  );
+}
+
+async function handleListMovies(chatId) {
+  const movies = await listMovies();
+
+  if (!movies.length) {
+    await sendMessage(chatId, "🎬 Todavía no hay películas cargadas.");
+    return;
+  }
+
+  let message = "🎬 <b>Películas guardadas</b>\n\n";
+
+  for (const movie of movies) {
+    const line =
+      `${movie.active ? "🟢" : "🔴"} ` +
+      `<b>${escapeHtml(movie.title)}</b>\n` +
+      `<code>${escapeHtml(movie.slug)}</code>\n\n`;
+
+    if ((message + line).length > 3500) {
+      await sendMessage(chatId, message);
+      message = "";
+    }
+
+    message += line;
+  }
+
+  if (message) {
+    await sendMessage(chatId, message);
+  }
+}
+
+async function handleDeleteMovie(chatId, argumentsText) {
+  const slug = argumentsText.trim();
+
+  if (!slug) {
+    await sendMessage(
+      chatId,
+      "Usá: <code>/eliminarpelicula slug</code>",
+    );
+    return;
+  }
+
+  const movie = await deleteMovie(slug);
+
+  await sendMessage(
+    chatId,
+    `🗑️ Película eliminada: <b>${escapeHtml(movie.title)}</b>`,
+  );
+}
+
+async function handleMovieStatus(chatId, argumentsText, active) {
+  const slug = argumentsText.trim();
+
+  if (!slug) {
+    await sendMessage(
+      chatId,
+      `Usá: <code>/${active ? "activarpelicula" : "desactivarpelicula"} slug</code>`,
+    );
+    return;
+  }
+
+  const movie = await setMovieActive(slug, active);
+
+  await sendMessage(
+    chatId,
+    `${active ? "🟢" : "🔴"} <b>${escapeHtml(movie.title)}</b> quedó ` +
+      `${active ? "activa" : "desactivada"}.`,
+  );
+}
+
 async function handleTextCommand(chatId, text) {
   const command = getCommand(text);
   const argumentsText = getCommandArguments(text);
@@ -794,6 +928,27 @@ try {
         await sendMessage(chatId, response);
         return true;
       }
+
+      case "/nuevapelicula":
+        await handleCreateMovie(chatId, argumentsText);
+        return true;
+
+      case "/peliculas":
+      case "/listarpeliculas":
+        await handleListMovies(chatId);
+        return true;
+
+      case "/eliminarpelicula":
+        await handleDeleteMovie(chatId, argumentsText);
+        return true;
+
+      case "/activarpelicula":
+        await handleMovieStatus(chatId, argumentsText, true);
+        return true;
+
+      case "/desactivarpelicula":
+        await handleMovieStatus(chatId, argumentsText, false);
+        return true;
       
       case "/listar":
       case "/canales":
