@@ -492,6 +492,45 @@ export function startHealthServer() {
         return;
       }
 
+      if (pathname.startsWith("/peliculas/")) {
+  const slug = decodeURIComponent(
+    pathname.slice("/peliculas/".length),
+  );
+
+  const movie = await getMovieBySlug(slug);
+
+  if (!movie) {
+    sendHtml(
+      res,
+      404,
+      renderLayout(
+        "Película no encontrada",
+        `<main class="container">
+          <div class="message">La película no existe.</div>
+        </main>`,
+      ),
+    );
+    return;
+  }
+
+  if (!movie.active) {
+    sendHtml(
+      res,
+      403,
+      renderLayout(
+        "Película desactivada",
+        `<main class="container">
+          <div class="message">Esta película está desactivada.</div>
+        </main>`,
+      ),
+    );
+    return;
+  }
+
+  sendHtml(res, 200, renderMoviePlayer(movie));
+  return;
+}
+
       if (pathname === "/tv" || pathname === "/tv/") {
         const channels = await listChannels();
         const activeChannels = channels.filter(
