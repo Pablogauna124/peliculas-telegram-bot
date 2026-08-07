@@ -406,6 +406,66 @@ export function startHealthServer() {
 
       const pathname = requestUrl.pathname;
 
+      if (
+  pathname.startsWith("/proxy/") &&
+  req.method === "GET"
+) {
+  const slug = decodeURIComponent(
+    pathname.slice("/proxy/".length)
+  );
+
+  const channel = await getChannelBySlug(slug);
+
+  if (!channel || !channel.active) {
+    sendJson(res, 404, {
+      error: "Canal no encontrado",
+    });
+    return;
+  }
+
+  try {
+    const upstream = await fetch(channel.url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/151 Safari/537.36",
+        Accept: "*/*",
+      },
+      redirect: "follow",
+    });
+
+    if (!upstream.ok) {
+      sendJson(res, upstream.status, {
+        error: "La fuente respondió con error",
+      });
+      return;
+    }
+
+    const contentType =
+      upstream.headers.get("content-type") ||
+      "application/octet-stream";
+
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    const buffer = Buffer.from(
+      await upstream.arrayBuffer()
+    );
+
+    res.end(buffer);
+  } catch (error) {
+    logger.error("Error proxy:", error.message);
+
+    sendJson(res, 502, {
+      error: "No se pudo obtener la transmisión",
+    });
+  }
+
+  return;
+}
+
       if (await handlePlaylistRoute(req, res, pathname)) {
       return;
     }
