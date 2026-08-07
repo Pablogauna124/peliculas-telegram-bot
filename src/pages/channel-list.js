@@ -140,6 +140,7 @@ export function renderChannelList(channels) {
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@latest/dist/shaka-player.compiled.js"></script>
     <script>
       const channels = ${serializeForScript(safeChannels)};
       const stage = document.getElementById("dynamic-player");
@@ -148,6 +149,7 @@ export function renderChannelList(channels) {
       const items = Array.from(document.querySelectorAll(".channel-item"));
       let currentIndex = -1;
       let currentHls = null;
+      let currentShaka = null;
 
       function escapeText(value) {
         const div = document.createElement("div");
@@ -157,7 +159,8 @@ export function renderChannelList(channels) {
 
       function provider(channel) {
         const type = String(channel.type || "url").toLowerCase();
-        if (type === "m3u8") return "hls";
+        if (type === "m3u8" || /\.m3u8(?:$|[?#])/i.test(channel.url)) return "hls";
+        if (type === "mpd" || /\.mpd(?:$|[?#])/i.test(channel.url)) return "dash";
         if (["mp4", "webm", "ts"].includes(type)) return "video";
         if (type === "m3u") return "m3u";
         try {
@@ -196,6 +199,7 @@ export function renderChannelList(channels) {
 
       function clearPlayer() {
         if (currentHls) { currentHls.destroy(); currentHls = null; }
+        if (currentShaka) { currentShaka.destroy(); currentShaka = null; }
         stage.replaceChildren();
       }
 
@@ -235,7 +239,20 @@ export function renderChannelList(channels) {
         video.autoplay = true;
         stage.appendChild(video);
 
-        if (type === "hls" && window.Hls && Hls.isSupported()) {
+        if (type === "dash") {
+          if (!window.shaka || !shaka.Player.isBrowserSupported()) {
+            clearPlayer();
+            showError(channel, "Este navegador no admite reproducción DASH.");
+            return;
+          }
+          currentShaka = new shaka.Player();
+          currentShaka.attach(video).then(() => currentShaka.load(channel.url)).then(() => {
+            video.play().catch(() => {});
+          }).catch(() => {
+            clearPlayer();
+            showError(channel, "No se pudo cargar la transmisión DASH. Si tiene DRM, requiere autorización del proveedor.");
+          });
+        } else if (type === "hls" && window.Hls && Hls.isSupported()) {
           currentHls = new Hls({ enableWorker:true, lowLatencyMode:true });
           currentHls.loadSource(channel.url);
           currentHls.attachMedia(video);
