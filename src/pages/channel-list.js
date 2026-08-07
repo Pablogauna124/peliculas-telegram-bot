@@ -350,6 +350,11 @@ function setupHlsQualities() {
         history.replaceState(null, "", "/tv?canal=" + encodeURIComponent(channel.slug));
 
         const type = provider(channel);
+        const playbackUrl =
+        channel.slug === "fox-sports-premium"
+        ? "/proxy/" + encodeURIComponent(channel.slug)
+        : channel.url;
+        
         if (["youtube", "vimeo", "dailymotion", "ibm"].includes(type)) {
           const iframe = document.createElement("iframe");
           iframe.src = embedUrl(channel.url, type);
@@ -385,7 +390,7 @@ function setupHlsQualities() {
           });
         } else if (type === "hls" && window.Hls && Hls.isSupported()) {
           currentHls = new Hls({ enableWorker:true, lowLatencyMode:true });
-          currentHls.loadSource(channel.url);
+          currentHls.loadSource(playbackUrl);
           currentHls.attachMedia(video);
           currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
         setupHlsQualities();
@@ -394,9 +399,9 @@ function setupHlsQualities() {
             if (data.fatal) { clearPlayer(); showError(channel, "No se pudo cargar la transmision."); }
           });
         } else if (type === "hls" && video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = channel.url;
+          video.src = playbackUrl;
         } else {
-          video.src = channel.url;
+          video.src = playbackUrl;
         }
         video.play().catch(() => {});
       }
