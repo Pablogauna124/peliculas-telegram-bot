@@ -14,6 +14,7 @@ export function detectChannelType(url) {
   const value = String(url || "").toLowerCase();
 
   if (value.includes(".m3u8")) return "m3u8";
+  if (value.includes(".mpd")) return "mpd";
   if (value.includes(".m3u")) return "m3u";
   if (value.includes(".mp4")) return "mp4";
   if (value.includes(".webm")) return "webm";
