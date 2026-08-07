@@ -72,6 +72,12 @@ export function renderChannelList(channels) {
                   <h1 id="current-name">Seleccion&aacute; un canal</h1>
                   <p id="current-category">TV en vivo</p>
                 </div>
+                <label id="quality-wrap" class="quality-wrap" hidden>
+                 <span>Calidad</span>
+                  <select id="quality-select" aria-label="Calidad de video">
+                  <option value="auto">Auto</option>
+                  </select>
+                 </label>
                 <div class="nav-buttons">
                   <button id="previous-channel" type="button" aria-label="Canal anterior">&lsaquo;</button>
                   <button id="next-channel" type="button" aria-label="Canal siguiente">&rsaquo;</button>
@@ -108,6 +114,28 @@ export function renderChannelList(channels) {
       .now-playing small { color:#55d98d; font-size:11px; font-weight:800; }
       .now-playing h1 { margin:6px 0 3px; font-size:25px; }
       .now-playing p { margin:0; color:#a8afbf; }
+      .quality-wrap {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:#a8afbf;
+  font-size:12px;
+  font-weight:700;
+}
+
+.quality-wrap[hidden] {
+  display:none;
+}
+
+.quality-wrap select {
+  padding:9px 10px;
+  border:1px solid #30384b;
+  border-radius:9px;
+  background:#111624;
+  color:#fff;
+  outline:none;
+  cursor:pointer;
+}
       .nav-buttons { display:flex; gap:8px; }
       .nav-buttons button { width:42px; height:42px; border:1px solid #30384b; border-radius:50%; background:#111624; color:#fff; font-size:28px; cursor:pointer; }
       .channel-sidebar { max-height:calc(100vh - 115px); position:sticky; top:15px; }
@@ -146,10 +174,15 @@ export function renderChannelList(channels) {
       const stage = document.getElementById("dynamic-player");
       const nameElement = document.getElementById("current-name");
       const categoryElement = document.getElementById("current-category");
+      const qualityWrap = document.getElementById("quality-wrap");
+      const qualitySelect = document.getElementById("quality-select");
       const items = Array.from(document.querySelectorAll(".channel-item"));
       let currentIndex = -1;
       let currentHls = null;
       let currentShaka = null;
+      let currentQualityType = null;
+      let dashTracksByHeight = new Map();
+      let hlsLevelsByHeight = new Map();
 
       function escapeText(value) {
         const div = document.createElement("div");
@@ -197,7 +230,77 @@ export function renderChannelList(channels) {
         return rawUrl;
       }
 
+      function resetQualitySelector() {
+  currentQualityType = null;
+  dashTracksByHeight = new Map();
+  hlsLevelsByHeight = new Map();
+
+  qualitySelect.innerHTML = '<option value="auto">Auto</option>';
+  qualitySelect.value = "auto";
+  qualityWrap.hidden = true;
+}
+
+function setQualityOptions(heights) {
+  const unique = Array.from(
+    new Set(heights.filter((height) => Number(height) > 0))
+  ).sort((a, b) => a - b);
+
+  qualitySelect.innerHTML = '<option value="auto">Auto</option>';
+
+  unique.forEach((height) => {
+    const option = document.createElement("option");
+    option.value = String(height);
+    option.textContent = height + "p";
+    qualitySelect.appendChild(option);
+  });
+
+  qualitySelect.value = "auto";
+  qualityWrap.hidden = unique.length === 0;
+}
+
+function setupDashQualities() {
+  if (!currentShaka) return;
+
+  const tracks = currentShaka
+    .getVariantTracks()
+    .filter((track) => track.height);
+
+  dashTracksByHeight = new Map();
+
+  tracks.forEach((track) => {
+    const height = Number(track.height);
+    const previous = dashTracksByHeight.get(height);
+
+    if (
+      !previous ||
+      Number(track.bandwidth || 0) > Number(previous.bandwidth || 0)
+    ) {
+      dashTracksByHeight.set(height, track);
+    }
+  });
+
+  currentQualityType = "dash";
+  setQualityOptions(Array.from(dashTracksByHeight.keys()));
+}
+
+function setupHlsQualities() {
+  if (!currentHls) return;
+
+  hlsLevelsByHeight = new Map();
+
+  currentHls.levels.forEach((level, index) => {
+    const height = Number(level.height);
+    if (!height) return;
+
+    hlsLevelsByHeight.set(height, index);
+  });
+
+  currentQualityType = "hls";
+  setQualityOptions(Array.from(hlsLevelsByHeight.keys()));
+}
+      
       function clearPlayer() {
+      resetQualitySelector();
         if (currentHls) { currentHls.destroy(); currentHls = null; }
         if (currentShaka) { currentShaka.destroy(); currentShaka = null; }
         stage.replaceChildren();
@@ -208,6 +311,33 @@ export function renderChannelList(channels) {
         stage.querySelector("a").href = channel.url;
       }
 
+      qualitySelect.addEventListener("change", () => {
+  const selected = qualitySelect.value;
+
+  if (currentQualityType === "dash" && currentShaka) {
+    if (selected === "auto") {
+      currentShaka.configure({ abr: { enabled: true } });
+    } else {
+      const track = dashTracksByHeight.get(Number(selected));
+      if (track) {
+        currentShaka.configure({ abr: { enabled: false } });
+        currentShaka.selectVariantTrack(track, true);
+      }
+    }
+  }
+
+  if (currentQualityType === "hls" && currentHls) {
+    if (selected === "auto") {
+      currentHls.currentLevel = -1;
+    } else {
+      const level = hlsLevelsByHeight.get(Number(selected));
+      if (level !== undefined) {
+        currentHls.currentLevel = level;
+      }
+    }
+  }
+});
+      
       function selectChannel(index) {
         const channel = channels[index];
         if (!channel) return;
@@ -247,7 +377,8 @@ export function renderChannelList(channels) {
           }
           currentShaka = new shaka.Player();
           currentShaka.attach(video).then(() => currentShaka.load(channel.url)).then(() => {
-            video.play().catch(() => {});
+          setupDashQualities();
+           video.play().catch(() => {});
           }).catch(() => {
             clearPlayer();
             showError(channel, "No se pudo cargar la transmisión DASH. Si tiene DRM, requiere autorización del proveedor.");
@@ -256,6 +387,9 @@ export function renderChannelList(channels) {
           currentHls = new Hls({ enableWorker:true, lowLatencyMode:true });
           currentHls.loadSource(channel.url);
           currentHls.attachMedia(video);
+          currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setupHlsQualities();
+      });
           currentHls.on(Hls.Events.ERROR, (_, data) => {
             if (data.fatal) { clearPlayer(); showError(channel, "No se pudo cargar la transmision."); }
           });
