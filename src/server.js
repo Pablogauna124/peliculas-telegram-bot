@@ -449,6 +449,46 @@ export function startHealthServer() {
 
     if (isHls) {
       const playlist = await upstream.text();
+      const baseUrl = new URL(upstream.url);
+
+      const rewritten = playlist
+        .split("\n")
+        .map((line) => {
+          const trimmed = line.trim();
+
+          // Dejar intactas las etiquetas HLS normales.
+          if (!trimmed || trimmed.startsWith("#")) {
+            return line;
+          }
+
+          try {
+            const resourceUrl = new URL(
+              trimmed,
+              baseUrl
+            );
+
+            // Seguridad: solo recursos del mismo host
+            // que entregó la playlist.
+            if (
+              resourceUrl.hostname !==
+              baseUrl.hostname
+            ) {
+              return line;
+            }
+
+            return (
+              "/proxy-segment/" +
+              encodeURIComponent(slug) +
+              "?url=" +
+              encodeURIComponent(
+                resourceUrl.toString()
+              )
+            );
+          } catch {
+            return line;
+          }
+        })
+        .join("\n");
 
       res.writeHead(200, {
         "Content-Type":
@@ -457,13 +497,14 @@ export function startHealthServer() {
         "Access-Control-Allow-Origin": "*",
       });
 
-      res.end(playlist);
+      res.end(rewritten);
       return;
     }
 
     res.writeHead(200, {
       "Content-Type":
-        contentType || "application/octet-stream",
+        contentType ||
+        "application/octet-stream",
       "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
     });
@@ -474,10 +515,14 @@ export function startHealthServer() {
 
     res.end(buffer);
   } catch (error) {
-    logger.error("Error proxy:", error.message);
+    logger.error(
+      "Error proxy:",
+      error.message
+    );
 
     sendJson(res, 502, {
-      error: "No se pudo obtener la transmisión",
+      error:
+        "No se pudo obtener la transmisión",
     });
   }
 
