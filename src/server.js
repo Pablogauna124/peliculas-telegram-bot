@@ -441,11 +441,29 @@ export function startHealthServer() {
     }
 
     const contentType =
-      upstream.headers.get("content-type") ||
-      "application/octet-stream";
+      upstream.headers.get("content-type") || "";
+
+    const isHls =
+      contentType.includes("mpegurl") ||
+      channel.type === "m3u8";
+
+    if (isHls) {
+      const playlist = await upstream.text();
+
+      res.writeHead(200, {
+        "Content-Type":
+          "application/vnd.apple.mpegurl; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+      });
+
+      res.end(playlist);
+      return;
+    }
 
     res.writeHead(200, {
-      "Content-Type": contentType,
+      "Content-Type":
+        contentType || "application/octet-stream",
       "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
     });
@@ -465,7 +483,6 @@ export function startHealthServer() {
 
   return;
 }
-
       if (await handlePlaylistRoute(req, res, pathname)) {
       return;
     }
