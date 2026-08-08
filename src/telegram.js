@@ -34,22 +34,38 @@ export function deleteWebhook() {
   return callApi("deleteWebhook", { drop_pending_updates: false });
 }
 
-export function getUpdates(offset, signal) {
-  return callApi(
-    "getUpdates",
-    {
-      offset,
-      timeout: config.pollTimeoutSeconds,
-      allowed_updates: [
-        "message",
-        "edited_message",
-        "callback_query",
-      ],
-    },
-    { signal },
-  );
-}
+export async function getUpdates(offset) {
+  const controller = new AbortController();
 
+  // Le damos a Telegram unos segundos adicionales
+  // respecto del timeout del long polling.
+  const timeoutMs =
+    (config.pollTimeoutSeconds + 10) * 1000;
+
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await callApi(
+      "getUpdates",
+      {
+        offset,
+        timeout: config.pollTimeoutSeconds,
+        allowed_updates: [
+          "message",
+          "edited_message",
+          "callback_query",
+        ],
+      },
+      {
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
 export function sendMessage(chatId, text, extra = {}) {
   return callApi("sendMessage", {
     chat_id: chatId,
