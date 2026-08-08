@@ -350,8 +350,8 @@ function setupHlsQualities() {
         history.replaceState(null, "", "/tv?canal=" + encodeURIComponent(channel.slug));
 
         const type = provider(channel);
-        const playbackUrl =
-        const useProxy = [
+
+const useProxy = [
   "fox-sports-premium",
   "encuentro",
   "proxy-prueba",
@@ -360,8 +360,6 @@ function setupHlsQualities() {
 const playbackUrl = useProxy
   ? "/proxy/" + encodeURIComponent(channel.slug)
   : channel.url;
-        ? "/proxy/" + encodeURIComponent(channel.slug)
-        : channel.url;
         
         if (["youtube", "vimeo", "dailymotion", "ibm"].includes(type)) {
           const iframe = document.createElement("iframe");
