@@ -351,7 +351,15 @@ function setupHlsQualities() {
 
         const type = provider(channel);
         const playbackUrl =
-        channel.slug === "fox-sports-premium"
+        const useProxy = [
+  "fox-sports-premium",
+  "encuentro",
+  "proxy-prueba",
+].includes(channel.slug);
+
+const playbackUrl = useProxy
+  ? "/proxy/" + encodeURIComponent(channel.slug)
+  : channel.url;
         ? "/proxy/" + encodeURIComponent(channel.slug)
         : channel.url;
         
